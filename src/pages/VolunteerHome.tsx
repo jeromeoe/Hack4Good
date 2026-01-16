@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Activity } from "../types/activity";
 import ActivityCard from "../components/ActivityCard";
+import { Button } from "../components/ui/button";
 
 
 export default function VolunteerHome() {
@@ -36,14 +37,15 @@ export default function VolunteerHome() {
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-5xl p-6">
-        {/* Tailwind test: big, bold, blue */}
         <h1 className="text-4xl font-bold text-blue-600">
           Volunteer Activities
         </h1>
 
-        <p className="mt-2 text-gray-600">
+        <p className="mt-3 text-gray-600">
           Sign up for activities that need volunteers.
         </p>
+        <Button className="mt-4">Browse Activities</Button>
+
 
         <div className="mt-6 space-y-4">
           {activities.map((activity) => (

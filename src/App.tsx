@@ -1,22 +1,23 @@
-import { Routes, Route, Navigate, Link } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "./auth/ProtectedRoute";
 import VolunteerHome from "./pages/VolunteerHome";
 import VolunteerCommitments from "./pages/VolunteerCommitments";
+import Login from "./pages/Login";
 
 export default function App() {
   return (
-    <div>
-      <nav style={{ padding: 12, borderBottom: "1px solid #eee" }}>
-        <Link to="/volunteer" style={{ marginRight: 16 }}>
-          Volunteer Home
-        </Link>
-        <Link to="/volunteer/commitments">My Commitments</Link>
-      </nav>
+    <Routes>
+      <Route path="/login" element={<Login />} />
 
-      <Routes>
+      {/* Protected area */}
+      <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Navigate to="/volunteer" replace />} />
         <Route path="/volunteer" element={<VolunteerHome />} />
         <Route path="/volunteer/commitments" element={<VolunteerCommitments />} />
-      </Routes>
-    </div>
+      </Route>
+
+      {/* fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
