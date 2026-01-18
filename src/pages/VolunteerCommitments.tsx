@@ -1,4 +1,5 @@
 import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
+import VolunteerRoleSelect from "../components/VolunteerRoleSelect";
 
 function formatDateTimeRange(startISO: string, endISO: string) {
   const s = new Date(startISO);
@@ -18,7 +19,7 @@ function formatDateTimeRange(startISO: string, endISO: string) {
 }
 
 export default function VolunteerCommitments() {
-  const { commitments, toast, toggleSignup } = useVolunteerActivities();
+  const { commitments, toast, toggleSignup, setMyRole } = useVolunteerActivities();
 
   return (
     <div className="space-y-6">
@@ -49,11 +50,14 @@ export default function VolunteerCommitments() {
                   <div className="text-lg font-semibold text-gray-900">{a.title}</div>
                   <div className="text-sm text-gray-700">{formatDateTimeRange(a.startISO, a.endISO)}</div>
                   <div className="text-sm text-gray-700">{a.location}</div>
-                  {a.role ? (
-                    <div className="text-xs text-gray-500">
-                      Role: <span className="font-medium text-gray-700">{a.role}</span>
-                    </div>
-                  ) : null}
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Role:</span>
+                    <VolunteerRoleSelect
+                      value={a.myRole}
+                      onChange={(role) => setMyRole(a.id, role as "General support" | "Wheelchair assistance")}
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
