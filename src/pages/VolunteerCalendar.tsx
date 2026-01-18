@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
 import VolunteerFilters from "../components/VolunteerFilters";
+import VolunteerRoleSelect from "../components/VolunteerRoleSelect";
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -45,7 +46,7 @@ function dayKey(d: Date) {
 }
 
 export default function VolunteerCalendar() {
-  const { filteredActivities, toast, toggleSignup } = useVolunteerActivities();
+  const { filteredActivities, toast, toggleSignup, setMyRole } = useVolunteerActivities();
 
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
@@ -138,6 +139,7 @@ export default function VolunteerCalendar() {
 
       <VolunteerFilters />
 
+      {/* Month grid */}
       <div className="rounded-xl border bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-lg font-semibold text-gray-900">{fmtMonthYear(monthAnchor)}</div>
@@ -212,6 +214,7 @@ export default function VolunteerCalendar() {
         </div>
       </div>
 
+      {/* Day details (THIS is where roles should appear) */}
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -264,11 +267,21 @@ export default function VolunteerCalendar() {
                   </span>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    Volunteers: <span className="font-medium text-gray-900">{a.signedUp}</span> /{" "}
-                    <span className="font-medium text-gray-900">{a.capacity}</span>
-                  </div>
+                {/* ✅ Roles UI */}
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {!a.isSignedUp ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">Role:</span>
+                      <VolunteerRoleSelect
+                        value={a.myRole}
+                        onChange={(role) => setMyRole(a.id, role as "General support" | "Wheelchair assistance")}
+                      />
+                    </div>
+                  ) : (
+                    <span className="w-fit rounded-md bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                      Role: {a.myRole ?? "General support"}
+                    </span>
+                  )}
 
                   <button
                     type="button"
