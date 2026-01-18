@@ -1,39 +1,26 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
 import { Link, useNavigate } from "react-router-dom";
+import { setMockRole } from "../auth/roles";
+import type { Role } from "../auth/roles";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  // ✅ Mock role selector
+  const [role, setRole] = useState<Role>("volunteer");
 
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
 
-    if (!supabase) {
-      setError("Supabase is not configured. Please check your environment variables.");
-      setLoading(false);
-      return;
-    }
+    // ✅ MOCK LOGIN (no Supabase needed)
+    setMockRole(role);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      navigate("/volunteer"); // ✅ redirect after login
-    }
-
-    setLoading(false);
-  };
+    // ✅ Redirect to correct portal
+    navigate(`/${role}`);
+  }
 
   return (
     <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2">
@@ -71,7 +58,7 @@ export default function Login() {
               <input
                 type="email"
                 required
-                className="w-full border rounded-lg px-4 py-3"
+                className="w-full border rounded-lg px-4 py-3 text-base"
                 placeholder="Enter email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -83,28 +70,38 @@ export default function Login() {
               <input
                 type="password"
                 required
-                className="w-full border rounded-lg px-4 py-3"
+                className="w-full border rounded-lg px-4 py-3 text-base"
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 
-            {error && (
-              <p className="text-red-600 text-sm text-center">{error}</p>
-            )}
+            {/* ✅ Role selector */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Login as</label>
+              <select
+                className="w-full border rounded-lg px-4 py-3 text-base"
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+              >
+                <option value="participant">Participant</option>
+                <option value="volunteer">Volunteer</option>
+                <option value="staff">Staff</option>
+              </select>
+            </div>
 
-            <button
-              disabled={loading}
-              className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg"
-            >
-              {loading ? "Signing in..." : "Login"}
+            <button className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
+              Login (Mock)
             </button>
           </form>
 
-          <p className="text-sm text-center mt-8 font-bold">
+          <p className="text-sm text-center mt-8 font-bold text-gray-800 drop-shadow-sm">
             Don’t have an account?{" "}
-            <Link to="/register" className="text-blue-500 underline">
+            <Link
+              to="/register"
+              className="text-blue-500 underline hover:text-blue-700"
+            >
               Sign up here
             </Link>
           </p>
