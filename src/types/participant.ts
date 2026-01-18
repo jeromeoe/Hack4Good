@@ -18,6 +18,7 @@ export type ParticipantProfile = {
   caregiverName?: string;
   caregiverEmail?: string;
   caregiverPhone?: string;
+  photoDataUrl?: string;
 };
 
 export type ActivityAccessibility = {

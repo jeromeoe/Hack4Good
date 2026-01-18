@@ -7,7 +7,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ Mock role selector
   const [role, setRole] = useState<Role>("volunteer");
 
   const navigate = useNavigate();
@@ -15,10 +14,9 @@ export default function Login() {
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
 
-    // ✅ MOCK LOGIN (no Supabase needed)
+ 
     setMockRole(role);
 
-    // ✅ Redirect to correct portal
     navigate(`/${role}`);
   }
 

@@ -125,6 +125,7 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
     age: 25,
     disability: "Physical Disability",
     isCaregiver: false,
+    photoDataUrl: "",
   });
 
   // Mock activities data
