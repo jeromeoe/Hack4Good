@@ -38,27 +38,60 @@ function convertDBActivityToApp(
   registrationCount: number,
   userRegistration: DBRegistration | null
 ): ParticipantActivity {
+  // Build start and end times from date + time_start/time_end
+  const dateStr = dbActivity.date;
+  const timeStart = dbActivity.time_start || '09:00';
+  const timeEnd = dbActivity.time_end || '17:00';
+  
+  // Combine date with times to create ISO strings
+  const startISO = dateStr ? `${dateStr}T${timeStart}:00+08:00` : new Date().toISOString();
+  const endISO = dateStr ? `${dateStr}T${timeEnd}:00+08:00` : new Date().toISOString();
+  
+  // Map disability_access to accessibility features
+  const disabilityAccess = dbActivity.disability_access || 'Universal';
+  const accessibility = {
+    wheelchairAccessible: disabilityAccess === 'Universal' || disabilityAccess === 'Wheelchair Friendly',
+    visuallyImpairedFriendly: disabilityAccess === 'Universal' || disabilityAccess === 'Sensory Friendly',
+    hearingImpairedFriendly: disabilityAccess === 'Universal' || disabilityAccess === 'Sensory Friendly',
+    intellectualDisabilityFriendly: disabilityAccess === 'Universal',
+    autismFriendly: disabilityAccess === 'Universal' || disabilityAccess === 'Sensory Friendly',
+  };
+  
+  // Map disability_access to suitable disabilities
+  const suitableFor: Disability[] = [];
+  if (disabilityAccess === 'Universal') {
+    suitableFor.push(
+      'Physical Disability',
+      'Visual Impairment',
+      'Hearing Impairment',
+      'Intellectual Disability',
+      'Autism Spectrum',
+      'Multiple Disabilities',
+      'Other'
+    );
+  } else if (disabilityAccess === 'Wheelchair Friendly') {
+    suitableFor.push('Physical Disability', 'Multiple Disabilities');
+  } else if (disabilityAccess === 'Sensory Friendly') {
+    suitableFor.push('Autism Spectrum', 'Visual Impairment', 'Hearing Impairment');
+  } else if (disabilityAccess === 'Ambulant') {
+    suitableFor.push('Visual Impairment', 'Hearing Impairment', 'Intellectual Disability', 'Other');
+  }
+  
   return {
     id: String(dbActivity.id),  // Convert bigint to string for app
     title: dbActivity.title,
-    startISO: dbActivity.start_time,
-    endISO: dbActivity.end_time,
+    startISO,
+    endISO,
     location: dbActivity.location,
-    description: dbActivity.description || dbActivity.comments || dbActivity.title,
-    meetingPoint: dbActivity.meeting_point || dbActivity.location,
-    mealsProvided: dbActivity.meals_provided,
-    accessibility: {
-      wheelchairAccessible: dbActivity.wheelchair_accessible,
-      visuallyImpairedFriendly: dbActivity.visually_impaired_friendly,
-      hearingImpairedFriendly: dbActivity.hearing_impaired_friendly,
-      intellectualDisabilityFriendly: dbActivity.intellectual_disability_friendly,
-      autismFriendly: dbActivity.autism_friendly,
-    },
-    capacity: dbActivity.capacity || dbActivity.spots,
+    description: dbActivity.comments || dbActivity.title,
+    meetingPoint: dbActivity.meeting_location || dbActivity.location,
+    mealsProvided: false, // Not in current schema
+    accessibility,
+    capacity: dbActivity.participant_slots || 20,
     registered: registrationCount,
     isRegistered: userRegistration?.status === 'registered',
     waitlisted: userRegistration?.status === 'waitlisted',
-    suitableFor: dbActivity.suitable_disabilities as Disability[],
+    suitableFor,
   };
 }
 
@@ -183,13 +216,13 @@ export async function fetchActivitiesForParticipant(): Promise<ParticipantActivi
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // Fetch all future activities
-    const now = new Date().toISOString();
+    // Fetch all activities (filter by date on client side since we need to combine date + time)
+    const today = new Date().toISOString().split('T')[0];
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
       .select('*')
-      .gte('start_time', now)
-      .order('start_time', { ascending: true });
+      .gte('date', today)
+      .order('date', { ascending: true });
 
     if (activitiesError) {
       console.error('Error fetching activities:', activitiesError);
@@ -262,7 +295,7 @@ export async function registerForActivity(
     // Check activity capacity
     const { data: activity, error: activityError } = await supabase
       .from('activities')
-      .select('capacity, spots')
+      .select('participant_slots')
       .eq('id', activityNumericId)
       .single();
 
@@ -270,7 +303,7 @@ export async function registerForActivity(
       return { success: false, waitlisted: false, message: 'Activity not found' };
     }
 
-    const maxCapacity = activity.capacity || activity.spots;
+    const maxCapacity = activity.participant_slots || 20;
 
     // Count current registrations
     const { data: registrations, error: countError } = await supabase
@@ -358,7 +391,7 @@ export async function checkSchedulingConflict(activityId: string): Promise<boole
     // Get the target activity
     const { data: targetActivity, error: targetError } = await supabase
       .from('activities')
-      .select('start_time, end_time')
+      .select('date, time_start, time_end')
       .eq('id', activityNumericId)
       .single();
 
@@ -378,18 +411,29 @@ export async function checkSchedulingConflict(activityId: string): Promise<boole
     // Get details of registered activities
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
-      .select('start_time, end_time')
+      .select('date, time_start, time_end')
       .in('id', activityIds);
 
     if (activitiesError || !activities) return false;
 
-    // Check for time overlaps
-    const targetStart = new Date(targetActivity.start_time).getTime();
-    const targetEnd = new Date(targetActivity.end_time).getTime();
+    // Build target time range
+    const targetDate = targetActivity.date;
+    const targetTimeStart = targetActivity.time_start || '09:00';
+    const targetTimeEnd = targetActivity.time_end || '17:00';
+    const targetStartISO = `${targetDate}T${targetTimeStart}:00+08:00`;
+    const targetEndISO = `${targetDate}T${targetTimeEnd}:00+08:00`;
+    const targetStart = new Date(targetStartISO).getTime();
+    const targetEnd = new Date(targetEndISO).getTime();
 
+    // Check for time overlaps
     for (const activity of activities) {
-      const actStart = new Date(activity.start_time).getTime();
-      const actEnd = new Date(activity.end_time).getTime();
+      const actDate = activity.date;
+      const actTimeStart = activity.time_start || '09:00';
+      const actTimeEnd = activity.time_end || '17:00';
+      const actStartISO = `${actDate}T${actTimeStart}:00+08:00`;
+      const actEndISO = `${actDate}T${actTimeEnd}:00+08:00`;
+      const actStart = new Date(actStartISO).getTime();
+      const actEnd = new Date(actEndISO).getTime();
 
       if (targetStart < actEnd && actStart < targetEnd) {
         return true; // Conflict found
@@ -435,12 +479,14 @@ export async function getWeeklyActivityCount(): Promise<number> {
     if (activityIds.length === 0) return 0;
 
     // Get activities within this week
+    const startDateStr = startOfWeek.toISOString().split('T')[0];
+    const endDateStr = endOfWeek.toISOString().split('T')[0];
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
       .select('id')
       .in('id', activityIds)
-      .gte('start_time', startOfWeek.toISOString())
-      .lte('start_time', endOfWeek.toISOString());
+      .gte('date', startDateStr)
+      .lte('date', endDateStr);
 
     if (activitiesError) return 0;
 
