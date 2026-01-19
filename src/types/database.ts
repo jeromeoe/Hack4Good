@@ -1,7 +1,4 @@
-// Supabase Database Types - YOUR EXACT SCHEMA
-// activities.id = bigint
-// profiles.id = uuid
-
+// src/types/database.ts
 export type Json =
   | string
   | number
@@ -15,10 +12,10 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id: string  // UUID
+          id: string
           email: string
           full_name: string
-          role: string  // 'participant' | 'volunteer' | 'staff'
+          role: string
           phone: string | null
           age: number | null
           disability: string | null
@@ -28,7 +25,7 @@ export interface Database {
           updated_at?: string  // Optional - might not exist
         }
         Insert: {
-          id: string  // UUID from auth
+          id: string
           email: string
           full_name: string
           role: string
@@ -56,7 +53,7 @@ export interface Database {
       }
       activities: {
         Row: {
-          id: number  // BIGINT
+          id: number
           created_at: string
           title: string
           date: string
@@ -73,7 +70,7 @@ export interface Database {
           participant_slots: number | null
         }
         Insert: {
-          id?: number  // Auto-generated
+          id?: number
           created_at?: string
           title: string
           date: string
@@ -107,19 +104,43 @@ export interface Database {
           participant_slots?: number | null
         }
       }
+      // ✅ THIS IS THE MISSING TABLE CAUSING THE ERROR
+      registrations: {
+        Row: {
+          id: number
+          user_id: string
+          activity_id: number
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          user_id: string
+          activity_id: number
+          role?: string
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          user_id?: string
+          activity_id?: number
+          role?: string
+          created_at?: string
+        }
+      }
       activity_registrations: {
         Row: {
-          id: number  // BIGINT
-          activity_id: number  // BIGINT -> activities
-          participant_id: string  // UUID -> profiles
+          id: number
+          activity_id: number
+          participant_id: string
           status: 'registered' | 'waitlisted' | 'cancelled'
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: number  // Auto-generated
+          id?: number
           activity_id: number
-          participant_id: string  // UUID
+          participant_id: string
           status?: 'registered' | 'waitlisted' | 'cancelled'
           created_at?: string
           updated_at?: string
@@ -146,7 +167,6 @@ export interface Database {
   }
 }
 
-// Helper types for caregiver info
 export interface CaregiverInfo {
   name: string
   email?: string

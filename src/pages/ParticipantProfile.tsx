@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParticipantActivities } from "../lib/ParticipantActivitiesContext";
 import type { Disability } from "../types/participant";
 
@@ -30,9 +30,8 @@ function Helper({ children }: { children: React.ReactNode }) {
 
 export default function ParticipantProfile() {
   const { profile, updateProfile } = useParticipantActivities();
-  const fileRef = useRef<HTMLInputElement | null>(null);
   
-  const [formData, setFormData] = useState(profile || {
+  const [formData, setFormData] = useState({
     id: "",
     name: "",
     email: "",
@@ -40,46 +39,71 @@ export default function ParticipantProfile() {
     age: 0,
     disability: "Physical Disability" as Disability,
     isCaregiver: false,
+    caregiverName: "",
+    caregiverEmail: "",
+    caregiverPhone: "",
     photoDataUrl: "",
   });
 
   const [status, setStatus] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Auto-save effect
+  // Sync formData with profile when profile loads
   useEffect(() => {
     if (profile) {
-      updateProfile(formData);
+      setFormData({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        age: profile.age,
+        disability: profile.disability,
+        isCaregiver: profile.isCaregiver,
+        caregiverName: profile.caregiverName || "",
+        caregiverEmail: profile.caregiverEmail || "",
+        caregiverPhone: profile.caregiverPhone || "",
+        photoDataUrl: profile.photoDataUrl || "",
+      });
     }
-  }, [formData]);
+  }, [profile?.id]); // Only run when profile ID changes (i.e., profile loads)
+
+  // Auto-save effect with debouncing
+  useEffect(() => {
+    if (!profile) return; // Don't save if profile not loaded yet
+
+    const timeoutId = setTimeout(async () => {
+      setIsSaving(true);
+      console.log('Auto-saving profile changes...');
+      
+      const success = await updateProfile({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        age: formData.age,
+        disability: formData.disability,
+        isCaregiver: formData.isCaregiver,
+        caregiverName: formData.caregiverName,
+        caregiverEmail: formData.caregiverEmail,
+        caregiverPhone: formData.caregiverPhone,
+        photoDataUrl: formData.photoDataUrl,
+      });
+
+      if (success) {
+        console.log('✓ Profile saved successfully');
+        setStatus("Changes saved ✅");
+      } else {
+        console.error('❌ Failed to save profile');
+        setStatus("Failed to save ❌");
+      }
+      
+      setIsSaving(false);
+      setTimeout(() => setStatus(""), 2000);
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [formData, profile?.id]); // Re-run when formData changes
 
   const avatarText = useMemo(() => initials(formData.name), [formData.name]);
-
-  function pickPhoto() {
-    fileRef.current?.click();
-  }
-
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFormData((p) => ({ ...p, photoDataUrl: String(reader.result || "") }));
-      setStatus("Photo updated ✅");
-      window.setTimeout(() => setStatus(""), 1400);
-    };
-    reader.readAsDataURL(file);
-
-    e.target.value = "";
-  }
-
-  function removePhoto() {
-    setFormData((p) => ({ ...p, photoDataUrl: "" }));
-    setStatus("Photo removed ✅");
-    window.setTimeout(() => setStatus(""), 1400);
-  }
 
   if (!profile) {
     return (
@@ -126,31 +150,6 @@ export default function ParticipantProfile() {
               </div>
               <div className="text-sm text-slate-500">Participant profile</div>
             </div>
-          </div>
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={onFileChange}
-          />
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={pickPhoto}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 active:scale-[0.98]"
-            >
-              Upload photo
-            </button>
-            <button
-              type="button"
-              onClick={removePhoto}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-            >
-              Remove
-            </button>
           </div>
 
           <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">

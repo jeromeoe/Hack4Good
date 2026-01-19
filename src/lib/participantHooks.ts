@@ -12,13 +12,13 @@ type DBRegistration = Database['public']['Tables']['activity_registrations']['Ro
 /**
  * Convert database profile to app profile format
  */
-function convertDBProfileToApp(dbProfile: DBProfile): ParticipantProfile {
+function convertDBProfileToApp(dbProfile: any): ParticipantProfile {
   const caregiverInfo = dbProfile.caregiver_info as CaregiverInfo | null;
   
   return {
     id: dbProfile.id,  // UUID string
-    name: dbProfile.full_name,
-    email: dbProfile.email,
+    name: dbProfile.full_name || "",
+    email: dbProfile.email || "",
     phone: dbProfile.phone || "",
     age: dbProfile.age || 0,
     disability: (dbProfile.disability || "Other") as Disability,
@@ -26,7 +26,7 @@ function convertDBProfileToApp(dbProfile: DBProfile): ParticipantProfile {
     caregiverName: caregiverInfo?.name,
     caregiverEmail: caregiverInfo?.email,
     caregiverPhone: caregiverInfo?.phone,
-    photoDataUrl: dbProfile.photo_url || "",
+    photoDataUrl: (dbProfile as any).photo_url || "", // Optional field that might not exist
   };
 }
 
@@ -100,52 +100,135 @@ function convertDBActivityToApp(
  */
 export async function fetchParticipantProfile(): Promise<ParticipantProfile | null> {
   try {
+    console.log('=== Starting fetchParticipantProfile ===');
+    
     // Get current authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
-      console.error('Error getting user:', userError);
+    if (userError) {
+      console.error('❌ Error getting user:', userError);
+      console.error('This might mean the session is invalid or expired');
+      return null;
+    }
+    
+    if (!user) {
+      console.error('❌ No authenticated user found');
+      console.error('User needs to login first');
       return null;
     }
 
-    console.log('Fetching profile for user ID:', user.id);
+    console.log('✓ Authenticated user found');
+    console.log('  - User ID:', user.id);
+    console.log('  - User email:', user.email);
+    console.log('  - Email confirmed:', user.email_confirmed_at ? 'Yes' : 'No');
 
-    // Fetch profile from database using UUID (without role filter first to debug)
-    const { data: profile, error: profileError } = await supabase
+    // Fetch profile from database using UUID
+    console.log('Fetching profile from database...');
+    console.log('Query: SELECT * FROM profiles WHERE id =', user.id);
+    
+    // Try with maybeSingle first (more permissive than single)
+    let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.id)  // user.id is UUID
-      .single();
+      .eq('id', user.id)
+      .maybeSingle();  // Changed from .single() to .maybeSingle()
+
+    // If that fails, try without the filter to test RLS
+    if (profileError || !profile) {
+      console.log('First query failed, trying alternate method...');
+      
+      // Try fetching all profiles and filter in JS (to test if RLS is issue)
+      const { data: allProfiles, error: allError } = await supabase
+        .from('profiles')
+        .select('*');
+      
+      if (allError) {
+        console.error('❌ Even fetching all profiles failed:', allError);
+      } else {
+        console.log('✓ Successfully fetched all profiles, count:', allProfiles?.length || 0);
+        
+        // Find the user's profile manually
+        profile = allProfiles?.find(p => p.id === user.id) || null;
+        
+        if (profile) {
+          console.log('✓ Found user profile in allProfiles array');
+          profileError = null; // Clear the error since we found it
+        } else {
+          console.error('❌ User profile not found even in all profiles');
+          console.log('Available profile IDs:', allProfiles?.map(p => p.id).join(', '));
+        }
+      }
+    }
 
     if (profileError) {
-      console.error('Error fetching profile:', profileError);
-      console.error('Profile error details:', JSON.stringify(profileError, null, 2));
+      console.error('❌ Error fetching profile:', profileError);
+      console.error('Error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint
+      });
+      
+      // Specific error handling
+      if (profileError.code === 'PGRST116') {
+        console.error('🔍 PGRST116: No rows returned');
+        console.error('This means:');
+        console.error('  1. No profile exists for user ID:', user.id);
+        console.error('  2. OR Row Level Security (RLS) is blocking access');
+        console.error('  3. Run debug_profiles.sql to check database');
+      } else if (profileError.code === '42501') {
+        console.error('🔒 42501: Permission denied');
+        console.error('Row Level Security (RLS) is blocking access');
+        console.error('Solution: Run fix_rls_policies.sql in Supabase SQL Editor');
+      } else if (profileError.message?.includes('row-level security')) {
+        console.error('🔒 RLS Policy Error');
+        console.error('The profiles table has RLS enabled but no policy allows this query');
+        console.error('Solution: Run fix_rls_policies.sql in Supabase SQL Editor');
+      }
+      
       return null;
     }
 
     if (!profile) {
-      console.error('No profile found for user ID:', user.id);
+      console.error('❌ No profile returned (but no error)');
+      console.error('This is unusual - profile query succeeded but returned null');
+      console.error('User ID:', user.id);
       return null;
     }
 
-    console.log('Profile found:', {
-      id: profile.id,
-      email: profile.email,
-      role: profile.role,
-      full_name: profile.full_name
-    });
+    console.log('✓ Profile found in database');
+    console.log('  - Email:', profile.email);
+    console.log('  - Name:', profile.full_name);
+    console.log('  - Role:', profile.role);
+    console.log('  - Phone:', profile.phone);
+    console.log('  - Age:', profile.age);
+    console.log('  - Disability:', profile.disability);
 
     // Check if role is participant (case-insensitive)
     const userRole = (profile.role || '').trim().toLowerCase();
     if (userRole !== 'participant') {
-      console.error('User role is not participant:', profile.role);
-      console.error('User should access their portal at:', userRole === 'staff' ? '/staff' : userRole === 'volunteer' ? '/volunteer' : 'unknown');
+      console.error('❌ User role is NOT participant:', profile.role);
+      console.error('User should access portal:', 
+        userRole === 'staff' ? '/staff' : 
+        userRole === 'volunteer' ? '/volunteer' : 
+        'unknown'
+      );
       return null;
     }
 
-    return convertDBProfileToApp(profile);
+    console.log('✓ User role is participant - proceeding');
+    const convertedProfile = convertDBProfileToApp(profile);
+    console.log('✓ Profile converted successfully');
+    console.log('=== fetchParticipantProfile complete ===');
+    
+    return convertedProfile;
   } catch (error) {
-    console.error('Error in fetchParticipantProfile:', error);
+    console.error('❌ Unexpected error in fetchParticipantProfile:', error);
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return null;
   }
 }
