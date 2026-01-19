@@ -78,42 +78,32 @@ export default function ParticipantRegister() {
       if (authError) throw authError;
 
       if (authData.user) {
-        // 2. Create Profile Row
+        // B. Create Profile Entry in Database
+        const caregiverInfo = formData.isCaregiver ? {
+          name: formData.caregiverName,
+          email: formData.caregiverEmail || undefined,
+          phone: formData.caregiverPhone || undefined
+        } : null;
+
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
-            id: authData.user.id,
+            id: authData.user.id, // Link to Auth ID
             email: formData.email,
             full_name: formData.name,
-            role: finalRole,
+            role: finalRole, // Dynamic role based on toggle
             phone: formData.phone,
             age: formData.age ? parseInt(formData.age) : null,
-            disability: isVolunteer ? null : formData.disability,
-            caregiver_info: (!isVolunteer && formData.isCaregiver) ? {
-              name: formData.caregiverName,
-              email: formData.caregiverEmail,
-              phone: formData.caregiverPhone
-            } : null
+            disability: !isVolunteer ? formData.disability : null,
+            caregiver_info: !isVolunteer ? caregiverInfo : null
           });
 
-        if (profileError) {
-          console.error("Profile Error:", profileError);
-          setErrorMsg(profileError.message || "Failed to create profile.");
-          setLoading(false);
-          return;
-        }
+        if (profileError) throw profileError;
 
-        // 3. ✅ SUCCESS: Show the Success View (No Alerts!)
-        setSuccess(true);
-        setMockRole(finalRole as any);
-
-        setLoading(false);
-
-        // Redirect after 2 seconds
-        setTimeout(() => {
-          navigate(`/${finalRole}`);
-        }, 2000);
-      } 
+        // C. Success!
+        alert("Account created successfully! Please log in.");
+        navigate("/login");
+      }
 
     } catch (error: any) {
       console.error("Registration Error:", error);

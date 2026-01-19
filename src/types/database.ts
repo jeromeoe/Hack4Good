@@ -1,6 +1,5 @@
-// Supabase Database Types - YOUR EXACT SCHEMA
-// activities.id = bigint
-// profiles.id = uuid
+// src/types/database.ts
+// Supabase Database Types - Unified Schema for by3
 
 export type Json =
   | string
@@ -15,7 +14,7 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id: string  // UUID
+          id: string  // UUID from auth.users
           email: string
           full_name: string
           role: string  // 'participant' | 'volunteer' | 'staff'
@@ -28,7 +27,7 @@ export interface Database {
           updated_at: string
         }
         Insert: {
-          id: string  // UUID from auth
+          id: string
           email: string
           full_name: string
           role: string
@@ -67,7 +66,7 @@ export interface Database {
           comments: string
           activity_type: string
           disability_access: string
-          // New columns added by migration
+          // Extra Mile Hackathon Columns
           description: string
           start_time: string
           end_time: string
@@ -81,10 +80,10 @@ export interface Database {
           autism_friendly: boolean
           suitable_disabilities: string[]
           updated_at: string
-          created_by: string | null  // UUID
+          created_by: string | null
         }
         Insert: {
-          id?: number  // Auto-generated
+          id?: number
           created_at?: string
           title: string
           date: string
@@ -138,19 +137,42 @@ export interface Database {
           created_by?: string | null
         }
       }
-      activity_registrations: {
+      registrations: { // Table for Volunteer signups
         Row: {
-          id: number  // BIGINT
-          activity_id: number  // BIGINT -> activities
-          participant_id: string  // UUID -> profiles
+          id: number
+          user_id: string // UUID
+          activity_id: number // BIGINT
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          user_id: string
+          activity_id: number
+          role?: string
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          user_id?: string
+          activity_id?: number
+          role?: string
+          created_at?: string
+        }
+      }
+      activity_registrations: { // Table for Participant signups
+        Row: {
+          id: number
+          activity_id: number
+          participant_id: string // UUID
           status: 'registered' | 'waitlisted' | 'cancelled'
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: number  // Auto-generated
+          id?: number
           activity_id: number
-          participant_id: string  // UUID
+          participant_id: string
           status?: 'registered' | 'waitlisted' | 'cancelled'
           created_at?: string
           updated_at?: string
@@ -162,29 +184,6 @@ export interface Database {
           status?: 'registered' | 'waitlisted' | 'cancelled'
           created_at?: string
           updated_at?: string
-        }
-      }
-      registrations: {
-        Row: {
-          id: number
-          user_id: string
-          activity_id: number
-          role: string | null
-          created_at: string | null
-        }
-        Insert: {
-          id?: number
-          user_id: string
-          activity_id: number
-          role?: string | null
-          created_at?: string | null
-        }
-        Update: {
-          id?: number
-          user_id?: string
-          activity_id?: number
-          role?: string | null
-          created_at?: string | null
         }
       }
     }
