@@ -6,9 +6,9 @@ import ParticipantLayout from "./layouts/ParticipantLayout";
 import StaffLayout from "./layouts/StaffLayout";
 
 import VolunteerHome from "./pages/VolunteerHome";
-import VolunteerCommitments from "./pages/VolunteerCommitments";
 import VolunteerCalendar from "./pages/VolunteerCalendar";
 import VolunteerActivities from "./pages/VolunteerActivities";
+import VolunteerProfile from "./pages/VolunteerProfile";
 import MyAccount from "./pages/MyAccount";
 
 import ParticipantHome from "./pages/ParticipantHome";
@@ -32,7 +32,7 @@ export default function App() {
           <Route index element={<VolunteerHome />} />
           <Route path="calendar" element={<VolunteerCalendar />} />
           <Route path="activities" element={<VolunteerActivities />} />
-          <Route path="commitments" element={<VolunteerCommitments />} />
+          <Route path="profile" element={<VolunteerProfile />} />
           <Route path="account" element={<MyAccount />} />
         </Route>
       </Route>
@@ -58,6 +58,6 @@ export default function App() {
       {/* Fallback Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes> 
+    </Routes>
   );
 }
