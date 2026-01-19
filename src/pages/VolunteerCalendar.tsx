@@ -1,7 +1,9 @@
+// VolunteerCalendar.tsx
 import { useMemo, useState } from "react";
 import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
 import VolunteerFilters from "../components/VolunteerFilters";
 import VolunteerRoleSelect from "../components/VolunteerRoleSelect";
+import VolunteerActivityModal from "../components/VolunteerActivityModal";
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -50,6 +52,14 @@ export default function VolunteerCalendar() {
 
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
+
+  // ✅ NEW: store clicked activity id for modal
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+
+  const selectedActivity = useMemo(() => {
+    if (!selectedActivityId) return null;
+    return filteredActivities.find((a) => a.id === selectedActivityId) ?? null;
+  }, [filteredActivities, selectedActivityId]);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthAnchor));
@@ -193,14 +203,21 @@ export default function VolunteerCalendar() {
                       ? "bg-blue-50 text-blue-700"
                       : "bg-green-50 text-green-700";
 
+                    // ✅ NEW: make event pill clickable (and stop day click)
                     return (
-                      <div
+                      <button
                         key={a.id}
-                        className={`truncate rounded-md px-2 py-1 text-[11px] font-medium ${tag}`}
+                        type="button"
+                        className={`truncate rounded-md px-2 py-1 text-left text-[11px] font-medium ${tag} hover:opacity-90`}
                         title={`${a.title} • ${fmtTimeRange(a.startISO, a.endISO)}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDay(d);
+                          setSelectedActivityId(a.id);
+                        }}
                       >
                         {a.title}
-                      </div>
+                      </button>
                     );
                   })}
 
@@ -214,7 +231,7 @@ export default function VolunteerCalendar() {
         </div>
       </div>
 
-      {/* Day details (THIS is where roles should appear) */}
+      {/* Day details */}
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -227,13 +244,13 @@ export default function VolunteerCalendar() {
               })}
             </div>
             <div className="text-sm text-gray-600">
-              {selectedList.length ? "Activities on this day" : "No activities on this day (with current filters)"}
+              {selectedList.length
+                ? "Activities on this day"
+                : "No activities on this day (with current filters)"}
             </div>
           </div>
 
-          <div className="text-xs text-gray-500">
-            Tip: Blue = you signed up • Green = available • Gray = full
-          </div>
+          <div className="text-xs text-gray-500">Tip: Blue = you signed up • Green = available • Gray = full</div>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -254,7 +271,14 @@ export default function VolunteerCalendar() {
               : "bg-black text-white hover:bg-gray-900";
 
             return (
-              <div key={a.id} className="rounded-xl border bg-white p-4">
+              // ✅ Optional: click the whole card to open modal
+              <div
+                key={a.id}
+                className="rounded-xl border bg-white p-4 cursor-pointer hover:bg-gray-50"
+                onClick={() => setSelectedActivityId(a.id)}
+                role="button"
+                tabIndex={0}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="text-base font-semibold text-gray-900">{a.title}</div>
@@ -267,14 +291,19 @@ export default function VolunteerCalendar() {
                   </span>
                 </div>
 
-                {/* ✅ Roles UI */}
+                {/* Roles UI */}
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   {!a.isSignedUp ? (
-                    <div className="flex items-center gap-2">
+                    <div
+                      className="flex items-center gap-2"
+                      onClick={(e) => e.stopPropagation()} // ✅ so clicking dropdown doesn't open modal
+                    >
                       <span className="text-sm text-gray-600">Role:</span>
                       <VolunteerRoleSelect
                         value={a.myRole}
-                        onChange={(role) => setMyRole(a.id, role as "General support" | "Wheelchair assistance")}
+                        onChange={(role) =>
+                          setMyRole(a.id, role as "General support" | "Wheelchair assistance")
+                        }
                       />
                     </div>
                   ) : (
@@ -286,7 +315,10 @@ export default function VolunteerCalendar() {
                   <button
                     type="button"
                     disabled={full}
-                    onClick={() => toggleSignup(a.id)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // ✅ button shouldn’t open modal
+                      toggleSignup(a.id);
+                    }}
                     className={`rounded-md px-4 py-2 text-sm font-medium transition ${btnClass}`}
                   >
                     {btnText}
@@ -297,6 +329,27 @@ export default function VolunteerCalendar() {
           })}
         </div>
       </div>
+
+      {/* ✅ Modal popup */}
+      {selectedActivity && (
+        <VolunteerActivityModal
+          activity={{
+            ...selectedActivity,
+            id: Number(selectedActivity.id),
+            startTime: new Date(selectedActivity.startISO).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+            endTime: new Date(selectedActivity.endISO).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+            volunteerSlotsTotal: selectedActivity.capacity,
+            volunteerSlotsFilled: selectedActivity.signedUp,
+            participantCapacity: selectedActivity.capacity,
+            participantRegistered: selectedActivity.signedUp,
+            waitlistCount: 0,
+            tags: [],
+          }}
+          signedUp={selectedActivity.isSignedUp}
+          onToggle={() => toggleSignup(selectedActivity.id)}
+          onClose={() => setSelectedActivityId(null)}
+        />
+      )}
     </div>
   );
 }
