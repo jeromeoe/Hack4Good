@@ -89,13 +89,13 @@ export default function ParticipantRegister() {
           .from('profiles')
           .insert({
             id: authData.user.id, // Link to Auth ID
-            email: formData.participantEmail,
-            full_name: formData.participantName,
-            role: 'participant', // HARDCODED ROLE
-            phone: formData.participantPhone,
-            age: parseInt(formData.participantAge),
-            disability: formData.disability,
-            caregiver_info: caregiverInfo
+            email: formData.email,
+            full_name: formData.name,
+            role: finalRole, // Dynamic role based on toggle
+            phone: formData.phone,
+            age: formData.age ? parseInt(formData.age) : null,
+            disability: !isVolunteer ? formData.disability : null,
+            caregiver_info: !isVolunteer ? caregiverInfo : null
           });
 
         if (profileError) throw profileError;

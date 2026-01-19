@@ -75,20 +75,40 @@ export async function fetchParticipantProfile(): Promise<ParticipantProfile | nu
       return null;
     }
 
-    // Fetch profile from database using UUID
+    console.log('Fetching profile for user ID:', user.id);
+
+    // Fetch profile from database using UUID (without role filter first to debug)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)  // user.id is UUID
-      .eq('role', 'participant')
       .single();
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
+      console.error('Profile error details:', JSON.stringify(profileError, null, 2));
       return null;
     }
 
-    if (!profile) return null;
+    if (!profile) {
+      console.error('No profile found for user ID:', user.id);
+      return null;
+    }
+
+    console.log('Profile found:', {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      full_name: profile.full_name
+    });
+
+    // Check if role is participant (case-insensitive)
+    const userRole = (profile.role || '').trim().toLowerCase();
+    if (userRole !== 'participant') {
+      console.error('User role is not participant:', profile.role);
+      console.error('User should access their portal at:', userRole === 'staff' ? '/staff' : userRole === 'volunteer' ? '/volunteer' : 'unknown');
+      return null;
+    }
 
     return convertDBProfileToApp(profile);
   } catch (error) {
