@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { setMockRole } from "../auth/roles";
+import { supabase } from "../lib/supabase"; // Real Supabase Client
 import type { Disability } from "../types/participant";
 
 const DISABILITIES: Disability[] = [
@@ -15,6 +15,8 @@ const DISABILITIES: Disability[] = [
 
 export default function ParticipantRegister() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     // Participant info
     participantName: "",
@@ -36,39 +38,75 @@ export default function ParticipantRegister() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({}); // Clear previous errors
     
-    // Validation
+    // --- 1. Client-Side Validation ---
     const newErrors: Record<string, string> = {};
-    
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
     }
-    
     if (formData.password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
-    
-    if (parseInt(formData.participantAge) < 1 || parseInt(formData.participantAge) > 120) {
-      newErrors.participantAge = "Please enter a valid age";
-    }
-    
     if (formData.isCaregiver && !formData.caregiverName) {
       newErrors.caregiverName = "Caregiver name is required";
     }
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-    
-    // Mock registration - in real app, would save to database
-    console.log("Registering participant:", formData);
-    
-    // Auto-login as participant
-    setMockRole("participant");
-    navigate("/participant");
+
+    // --- 2. Real Registration Logic ---
+    setLoading(true);
+    try {
+      // A. Create User in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.participantEmail,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.participantName, // stored in auth metadata
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // B. Create Profile Entry in Database
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id, // Link to Auth ID
+            email: formData.participantEmail,
+            full_name: formData.participantName,
+            role: 'participant', // HARDCODED ROLE
+            phone: formData.participantPhone,
+            age: parseInt(formData.participantAge),
+            disability: formData.disability,
+            caregiver_info: formData.isCaregiver ? {
+              name: formData.caregiverName,
+              email: formData.caregiverEmail,
+              phone: formData.caregiverPhone
+            } : null
+          });
+
+        if (profileError) throw profileError;
+
+        // C. Success!
+        alert("Account created successfully!");
+        navigate("/participant");
+      }
+
+    } catch (error: any) {
+      console.error("Registration Error:", error);
+      setErrors({ form: error.message || "Failed to register. Please try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -104,6 +142,13 @@ export default function ParticipantRegister() {
           <p className="text-gray-600 mb-6">Register as a participant or caregiver</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Global Error Message */}
+            {errors.form && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200">
+                {errors.form}
+              </div>
+            )}
+
             {/* Participant Information */}
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-gray-900">Participant Information</h2>
@@ -267,8 +312,11 @@ export default function ParticipantRegister() {
               )}
             </div>
 
-            <button className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
-              Create Account
+            <button 
+              disabled={loading}
+              className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50"
+            >
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
           </form>
 
