@@ -24,26 +24,20 @@ dist-ssr
 *.sw?
 .env
 
-# Debug/Fix documentation (don't commit these)
-*_FIX*.md
-*_BUG*.md
-*_DIAGNOSTIC*.md
-FIXES_*.md
-DEBUG_*.md
-QUICK_*.md
-COMPLETE_*.md
-ACTUAL_*.md
-EXISTING_*.md
-SESSION_*.md
-LOGIN_*.md
-PARTICIPANT_*.md
-VOLUNTEER_MODAL*.md
+# Documentation files (keep only README.md)
+# Ignore all .md files except README.md
+*.md
+!README.md
 
-# SQL diagnostic/fix scripts (don't commit these)
-debug_*.sql
-fix_*.sql
-migration_*.sql
-diagnose_*.sql
+# SQL scripts (keep only schema and migrations)
+*.sql
+!schema.sql
+!migrations/*.sql
+
+# Patch files
+*.patch
 
 # Cleanup scripts
-cleanup-docs.sh
+cleanup-*.sh
+*.sh
+!scripts/*.sh
