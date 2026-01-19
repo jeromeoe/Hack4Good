@@ -1,23 +1,68 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { setMockRole } from "../auth/roles";
-import type { Role } from "../auth/roles";
+import { supabase } from "../lib/supabase";
+import { setMockRole } from "../auth/roles"; // ✅ Import the bridge function
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const [role, setRole] = useState<Role>("volunteer");
-
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    setIsLoading(true);
 
- 
-    setMockRole(role);
+    try {
+      // 1. Authenticate with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    navigate(`/${role}`);
+      if (authError) {
+        alert(authError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Check the Database for the Role
+      if (authData.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
+          navigate("/participant");
+          return;
+        }
+
+        const role = profile?.role;
+        console.log("Supabase says you are:", role);
+
+        // ✅ CRITICAL FIX: Update the Router's "Badge"
+        // This ensures RoleRoute lets you in!
+        if (role) {
+            setMockRole(role as any); 
+        }
+
+        // 3. Navigation
+        if (role === "staff") {
+          navigate("/staff");
+        } else if (role === "volunteer") {
+          navigate("/volunteer");
+        } else {
+          navigate("/participant");
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      alert("An unexpected error occurred.");
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -75,22 +120,11 @@ export default function Login() {
               />
             </div>
 
-            {/* ✅ Role selector */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Login as</label>
-              <select
-                className="w-full border rounded-lg px-4 py-3 text-base"
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-              >
-                <option value="participant">Participant</option>
-                <option value="volunteer">Volunteer</option>
-                <option value="staff">Staff</option>
-              </select>
-            </div>
-
-            <button className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
-              Login (Mock)
+            <button 
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50"
+            >
+              {isLoading ? "Verifying Access..." : "Login"}
             </button>
           </form>
 
