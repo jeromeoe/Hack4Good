@@ -1,4 +1,5 @@
 import { NavLink, Outlet, Link } from "react-router-dom";
+import { LogOut } from "lucide-react"; // Import icon for better UX
 
 export default function StaffLayout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -11,27 +12,26 @@ export default function StaffLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Admin Bar */}
-      <div className="h-10 bg-gray-900 border-b border-gray-800">
-        <div className="mx-auto max-w-7xl px-6 h-full flex items-center justify-between text-sm text-gray-400">
+      {/* Top Admin Bar - Purely for Status now */}
+      <div className="h-8 bg-gray-900 border-b border-gray-800">
+        <div className="mx-auto max-w-7xl px-6 h-full flex items-center justify-between text-xs text-gray-400">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white">MINDS Staff Portal</span>
-            <span className="px-2 py-0.5 rounded-full bg-blue-900 text-blue-200 text-xs">
-              Admin Access
-            </span>
+            <span className="font-bold text-white tracking-wide">MINDS STAFF PORTAL</span>
           </div>
-          <Link to="/login" className="hover:text-white transition">
-            Log Out
-          </Link>
+          <span className="flex items-center gap-2">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+             System Operational
+          </span>
         </div>
       </div>
 
-      {/* Main Navigation */}
+      {/* Main Navigation - Log Out is now here */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center gap-8">
           <img src="/src/assets/logo.png" alt="MINDS" className="h-10 w-auto" />
 
-          <div className="flex-1">
+          <div className="flex-1 flex items-center justify-between">
+            {/* Nav Links */}
             <div className="flex gap-1">
               <NavLink to="/staff" end className={linkClass}>
                 Dashboard
@@ -39,23 +39,27 @@ export default function StaffLayout() {
               <NavLink to="/staff/activities" className={linkClass}>
                 Manage Activities
               </NavLink>
-              {/* Placeholders for future pages */}
-              <span className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed">
-                Participants
-              </span>
-              <span className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed">
-                Reports
-              </span>
+            </div>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center gap-3 border-l pl-6 border-gray-200">
+               <span className="text-sm font-medium text-gray-700 hidden md:block">
+                 Admin
+               </span>
+               <Link 
+                 to="/login" 
+                 className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-red-600 transition px-3 py-2 rounded-md hover:bg-red-50"
+               >
+                 <LogOut size={16} />
+                 Log Out
+               </Link>
             </div>
           </div>
           
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition shadow-sm">
-            + New Activity
-          </button>
         </div>
       </div>
 
-      {/* Page Content (Where StaffHome / StaffActivities appears) */}
+      {/* Page Content */}
       <main className="mx-auto max-w-7xl px-6 py-8">
         <Outlet />
       </main>
