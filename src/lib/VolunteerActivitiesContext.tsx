@@ -1,17 +1,18 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { supabase } from "./supabase";
 
 export const VOLUNTEER_ROLES = ["General support", "Wheelchair assistance"] as const;
 export type VolunteerRole = (typeof VOLUNTEER_ROLES)[number];
 
 export type Activity = {
-  id: string;
+  id: number; // Changed from string to number to match DB
   title: string;
   startISO: string;
   endISO: string;
   location: string;
   capacity: number;
-  signedUp: number;
-  isSignedUp: boolean;
+  signedUp: number; // How many people total
+  isSignedUp: boolean; // Is the CURRENT user signed up?
   myRole?: VolunteerRole;
 };
 
@@ -32,18 +33,24 @@ type Ctx = {
   setFilters: (patch: Partial<Filters>) => void;
   toast: Toast;
   clearToast: () => void;
-  setMyRole: (activityId: string, role: VolunteerRole) => void;
-  toggleSignup: (activityId: string) => void;
+  setMyRole: (activityId: number, role: VolunteerRole) => void;
+  toggleSignup: (activityId: number) => Promise<void>;
 };
 
 const VolunteerActivitiesContext = createContext<Ctx | null>(null);
 
-function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  const as = new Date(aStart).getTime();
-  const ae = new Date(aEnd).getTime();
-  const bs = new Date(bStart).getTime();
-  const be = new Date(bEnd).getTime();
-  return as < be && bs < ae;
+// Helper: Convert "2024-05-20" -> ISO String for 9AM - 12PM
+function synthesizeTimes(dateStr: string) {
+  const start = new Date(dateStr);
+  start.setHours(9, 0, 0, 0); // Default to 9 AM
+  
+  const end = new Date(dateStr);
+  end.setHours(12, 0, 0, 0); // Default to 12 PM
+  
+  return {
+    startISO: start.toISOString(),
+    endISO: end.toISOString()
+  };
 }
 
 function startOfToday() {
@@ -63,107 +70,122 @@ function endOfNext7Days() {
   return d;
 }
 
-function formatWhen(startISO: string, endISO: string) {
-  const start = new Date(startISO);
-  const end = new Date(endISO);
-
-  const day = start.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-
-  const startTime = start.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const endTime = end.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  return `${day}, ${startTime} – ${endTime}`;
-}
-
 export function VolunteerActivitiesProvider({ children }: { children: React.ReactNode }) {
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "a1",
-      title: "Art Jamming",
-      startISO: "2026-01-20T10:00:00+08:00",
-      endISO: "2026-01-20T12:00:00+08:00",
-      location: "MINDS HQ",
-      capacity: 5,
-      signedUp: 2,
-      isSignedUp: false,
-      myRole: "General support",
-    },
-    {
-      id: "a2",
-      title: "Music Therapy",
-      startISO: "2026-01-21T14:00:00+08:00",
-      endISO: "2026-01-21T16:00:00+08:00",
-      location: "MINDS West",
-      capacity: 3,
-      signedUp: 3,
-      isSignedUp: false,
-      myRole: "Wheelchair assistance",
-    },
-    {
-      id: "a3",
-      title: "Board Games",
-      startISO: "2026-01-21T15:30:00+08:00",
-      endISO: "2026-01-21T17:00:00+08:00",
-      location: "MINDS HQ",
-      capacity: 4,
-      signedUp: 1,
-      isSignedUp: true,
-      myRole: "General support",
-    },
-    {
-      id: "a4",
-      title: "Walking Club",
-      startISO: "2026-01-05T09:00:00+08:00",
-      endISO: "2026-01-05T10:30:00+08:00",
-      location: "MINDS East",
-      capacity: 6,
-      signedUp: 4,
-      isSignedUp: true,
-      myRole: "General support",
-    },
-  ]);
-
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [_loading, setLoading] = useState(true);
   const [filters, _setFilters] = useState<Filters>({
     date: "all",
     location: "all",
     onlyNeeding: false,
   });
-
   const [toast, setToast] = useState<Toast>(null);
+  const clearToast = () => setToast(null);
+  const setFilters = (patch: Partial<Filters>) =>
+    _setFilters((prev) => ({ ...prev, ...patch }));
 
-  function clearToast() {
-    setToast(null);
-  }
   function showToast(message: string) {
     setToast({ message });
-    window.clearTimeout((showToast as any)._t);
-    (showToast as any)._t = window.setTimeout(() => setToast(null), 2200);
+    window.setTimeout(() => setToast(null), 2500);
   }
 
-  function setFilters(patch: Partial<Filters>) {
-    _setFilters((prev) => ({ ...prev, ...patch }));
+  function setMyRole(activityId: number, role: VolunteerRole) {
+    setActivities((prev) =>
+      prev.map((a) => (a.id === activityId ? { ...a, myRole: role } : a))
+    );
   }
 
+  // --- 1. FETCH REAL DATA ---
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+  
+    // 1. Fetch all activities posted by Staff
+    const { data: events } = await supabase
+      .from('activities')
+      .select('*');
+  
+    // 2. Fetch all signups from your specific REGISTRATIONS table
+    // NOTE: The typed Supabase `Database` may not include this table in all environments.
+    // Fall back to `any` here to avoid `never` typing errors.
+    const { data: allRegistrations } = await (supabase as any)
+      .from("registrations") // Targeting your friend's table name
+      .select("*");
+  
+    if (events && allRegistrations) {
+      const merged = events.map((event: any) => {
+        const eventRegs = (allRegistrations as any[]).filter((r) => r.activity_id === event.id);
+        const myReg = eventRegs.find((r) => r.user_id === user.id);
+        const { startISO, endISO } = synthesizeTimes(event.date);
+  
+        return {
+          id: event.id,
+          title: event.title,
+          location: event.location,
+          capacity: event.spots,
+          signedUp: eventRegs.length,
+          isSignedUp: !!myReg,
+          myRole: (myReg?.role as VolunteerRole | undefined) || "General support",
+          startISO,
+          endISO,
+        };
+      });
+      setActivities(merged);
+    }
+    setLoading(false);
+  }
+  
+  async function toggleSignup(activityId: number) {
+    const target = activities.find(a => a.id === activityId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !target) return;
+  
+    if (target.isSignedUp) {
+      // Cancel: Delete from REGISTRATIONS
+      const { error } = await (supabase as any)
+        .from("registrations")
+        .delete()
+        .match({ user_id: user.id, activity_id: activityId });
+
+      if (error) showToast("Error cancelling: " + error.message);
+      else showToast("Unregistered successfully.");
+    } else {
+      if (target.signedUp >= target.capacity) {
+        showToast("Activity is full!");
+        return;
+      }
+
+      // Signup: Insert into REGISTRATIONS
+      const { error } = await (supabase as any).from("registrations").insert({
+        user_id: user.id,
+        activity_id: activityId,
+        role: target.myRole || "General support",
+      });
+
+      if (error) showToast("Error signing up: " + error.message);
+      else showToast("Registration successful!");
+    }
+
+    fetchData(); // Refresh to sync counts
+  }
+
+  // --- Derived State (Filters) ---
   const locations = useMemo(() => {
     const set = new Set<string>();
     activities.forEach((a) => set.add(a.location));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(set).sort();
   }, [activities]);
 
   const commitments = useMemo(() => {
-    return activities
-      .filter((a) => a.isSignedUp)
-      .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime());
+    return activities.filter((a) => a.isSignedUp);
   }, [activities]);
 
   const filteredActivities = useMemo(() => {
@@ -174,84 +196,20 @@ export function VolunteerActivitiesProvider({ children }: { children: React.Reac
     return activities
       .filter((a) => {
         if (filters.location !== "all" && a.location !== filters.location) return false;
-
         const st = new Date(a.startISO).getTime();
-        if (filters.date === "today") {
-          if (st < t0 || st > t1Today) return false;
-        }
-        if (filters.date === "week") {
-          if (st < t0 || st > t1Week) return false;
-        }
-
+        if (filters.date === "today" && (st < t0 || st > t1Today)) return false;
+        if (filters.date === "week" && (st < t0 || st > t1Week)) return false;
         if (filters.onlyNeeding) {
-          const needing = a.signedUp < a.capacity;
-          if (!a.isSignedUp && !needing) return false;
+          if (!a.isSignedUp && a.signedUp >= a.capacity) return false;
         }
-
         return true;
-      })
-      .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime());
+      });
   }, [activities, filters]);
 
-  function setMyRole(activityId: string, role: VolunteerRole) {
-    setActivities((prev) => prev.map((a) => (a.id === activityId ? { ...a, myRole: role } : a)));
-    showToast(`Role set: ${role}`);
-  }
-
-  function toggleSignup(activityId: string) {
-    setActivities((prev) => {
-      const target = prev.find((a) => a.id === activityId);
-      if (!target) return prev;
-
-      if (target.isSignedUp) {
-        showToast("Cancelled successfully.");
-        return prev.map((a) =>
-          a.id === activityId
-            ? { ...a, isSignedUp: false, signedUp: Math.max(0, a.signedUp - 1) }
-            : a
-        );
-      }
-
-      if (target.signedUp >= target.capacity) {
-        showToast("This activity is full.");
-        return prev;
-      }
-
-      for (const c of prev) {
-        if (!c.isSignedUp) continue;
-        if (c.id === target.id) continue;
-        if (overlaps(target.startISO, target.endISO, c.startISO, c.endISO)) {
-          showToast(`Clash with "${c.title}" (${formatWhen(c.startISO, c.endISO)}).`);
-          return prev;
-        }
-      }
-
-      const role = target.myRole ?? "General support";
-      showToast(`Signed up successfully! (${role})`);
-
-      return prev.map((a) =>
-        a.id === activityId
-          ? { ...a, isSignedUp: true, signedUp: Math.min(a.capacity, a.signedUp + 1), myRole: role }
-          : a
-      );
-    });
-  }
-
-  const value: Ctx = {
-    activities,
-    filteredActivities,
-    commitments,
-    locations,
-    filters,
-    setFilters,
-    toast,
-    clearToast,
-    setMyRole,
-    toggleSignup,
-  };
-
   return (
-    <VolunteerActivitiesContext.Provider value={value}>
+    <VolunteerActivitiesContext.Provider value={{
+      activities, filteredActivities, commitments, locations, filters, setFilters, toast, clearToast, setMyRole, toggleSignup
+    }}>
       {children}
     </VolunteerActivitiesContext.Provider>
   );
