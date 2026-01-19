@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
 import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
 
@@ -25,6 +25,27 @@ function formatStart(startISO: string) {
 export default function VolunteerHome() {
   // ✅ only take what your current context likely has
   const ctx = useVolunteerActivities() as any;
+
+    const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      // OPTIONAL: call backend logout if you have one
+      await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // ignore errors (logout should still proceed)
+    }
+
+    // Clear any local auth data if you use it
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Redirect to login
+    navigate("/login", { replace: true });
+  };
 
   const activities = (ctx.activities ?? []) as any[];
   const myActivitiesRaw = (ctx.myActivities ?? null) as any[] | null;
@@ -59,6 +80,8 @@ export default function VolunteerHome() {
 
   return (
     <div className="space-y-6">
+      
+
       {/* Welcome */}
       <div className="rounded-xl border bg-white p-6 shadow-sm">
         <h1 className="text-3xl font-bold text-blue-600">Welcome back, Volunteer!</h1>
