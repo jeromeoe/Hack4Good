@@ -20,9 +20,9 @@ export interface Database {
           age: number | null
           disability: string | null
           caregiver_info: Json | null
-          photo_url?: string | null  // Optional - might not exist
-          created_at?: string  // Optional - might not exist
-          updated_at?: string  // Optional - might not exist
+          photo_url: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id: string
@@ -59,15 +59,27 @@ export interface Database {
           date: string
           location: string
           category: string
+          spots: number // Keeping legacy 'spots' just in case
+          volunteer_slots: number | null // ✅ Added
+          participant_slots: number | null // ✅ Added
           image: string
           comments: string
           activity_type: string
           disability_access: string
-          meeting_location: string | null
-          time_start: string | null
-          time_end: string | null
-          volunteer_slots: number | null
-          participant_slots: number | null
+          description: string
+          start_time: string
+          end_time: string
+          meeting_point: string
+          meals_provided: boolean
+          capacity: number
+          wheelchair_accessible: boolean
+          visually_impaired_friendly: boolean
+          hearing_impaired_friendly: boolean
+          intellectual_disability_friendly: boolean
+          autism_friendly: boolean
+          suitable_disabilities: string[]
+          updated_at: string
+          created_by: string | null
         }
         Insert: {
           id?: number
@@ -76,15 +88,27 @@ export interface Database {
           date: string
           location: string
           category: string
+          spots: number
+          volunteer_slots?: number | null // ✅ Added
+          participant_slots?: number | null // ✅ Added
           image?: string
           comments?: string
           activity_type?: string
           disability_access?: string
-          meeting_location?: string | null
-          time_start?: string | null
-          time_end?: string | null
-          volunteer_slots?: number | null
-          participant_slots?: number | null
+          description?: string
+          start_time?: string
+          end_time?: string
+          meeting_point?: string
+          meals_provided?: boolean
+          capacity?: number
+          wheelchair_accessible?: boolean
+          visually_impaired_friendly?: boolean
+          hearing_impaired_friendly?: boolean
+          intellectual_disability_friendly?: boolean
+          autism_friendly?: boolean
+          suitable_disabilities?: string[]
+          updated_at?: string
+          created_by?: string | null
         }
         Update: {
           id?: number
@@ -93,38 +117,53 @@ export interface Database {
           date?: string
           location?: string
           category?: string
+          spots?: number
+          volunteer_slots?: number | null // ✅ Added
+          participant_slots?: number | null // ✅ Added
           image?: string
           comments?: string
           activity_type?: string
           disability_access?: string
-          meeting_location?: string | null
-          time_start?: string | null
-          time_end?: string | null
-          volunteer_slots?: number | null
-          participant_slots?: number | null
+          description?: string
+          start_time?: string
+          end_time?: string
+          meeting_point?: string
+          meals_provided?: boolean
+          capacity?: number
+          wheelchair_accessible?: boolean
+          visually_impaired_friendly?: boolean
+          hearing_impaired_friendly?: boolean
+          intellectual_disability_friendly?: boolean
+          autism_friendly?: boolean
+          suitable_disabilities?: string[]
+          updated_at?: string
+          created_by?: string | null
         }
       }
-      // ✅ THIS IS THE MISSING TABLE CAUSING THE ERROR
+      // ✅ UPDATED TO MATCH YOUR REAL DB SCHEMA
       registrations: {
         Row: {
           id: number
           user_id: string
           activity_id: number
-          role: string
+          user_type: string // Replaces 'role'
+          status: string    // Added status
           created_at: string
         }
         Insert: {
           id?: number
           user_id: string
           activity_id: number
-          role?: string
+          user_type?: string
+          status?: string
           created_at?: string
         }
         Update: {
           id?: number
           user_id?: string
           activity_id?: number
-          role?: string
+          user_type?: string
+          status?: string
           created_at?: string
         }
       }

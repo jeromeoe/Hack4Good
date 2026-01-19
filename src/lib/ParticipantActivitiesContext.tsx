@@ -34,8 +34,8 @@ type Ctx = {
   toast: Toast;
   clearToast: () => void;
   toggleRegistration: (activityId: string) => Promise<void>;
-  updateProfile: (profile: Partial<ParticipantProfile>) => Promise<void>;
-  checkClash: (activityId: string) => Promise<boolean>;
+  updateProfile: (profile: Partial<ParticipantProfile>) => Promise<boolean>;
+  checkClash: (activityId: string) => boolean;
   getWeeklyCount: () => number;
   isLoading: boolean;
   refreshActivities: () => Promise<void>;
@@ -106,6 +106,7 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
   const [activities, setActivities] = useState<ParticipantActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [weeklyCount, setWeeklyCount] = useState(0);
+  const [clashCache, setClashCache] = useState<Map<string, boolean>>(new Map());
 
   const [filters, setFiltersState] = useState<ActivityFilters>({
     date: "all",
@@ -150,6 +151,26 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
 
     loadData();
   }, []);
+
+  // Preload clash detection for all activities
+  useEffect(() => {
+    if (activities.length === 0) return;
+    
+    const newCache = new Map<string, boolean>();
+    
+    // Check for clashes asynchronously for all activities
+    Promise.all(
+      activities.map(async (activity) => {
+        const hasClash = await checkSchedulingConflict(activity.id);
+        return [activity.id, hasClash] as [string, boolean];
+      })
+    ).then((results) => {
+      results.forEach(([id, hasClash]) => {
+        newCache.set(id, hasClash);
+      });
+      setClashCache(newCache);
+    });
+  }, [activities]);
 
   // Extract unique locations
   const locations = useMemo(() => {
@@ -225,6 +246,9 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
       
       const count = await getWeeklyCountFromDB();
       setWeeklyCount(count);
+      
+      // Clear clash cache when activities refresh
+      setClashCache(new Map());
     } catch (error) {
       console.error('Error refreshing activities:', error);
     }
@@ -318,19 +342,31 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
     }
   };
 
-  const updateProfile = async (updates: Partial<ParticipantProfile>) => {
-    if (!profile) return;
+  const updateProfile = async (updates: Partial<ParticipantProfile>): Promise<boolean> => {
+    console.log('[CONTEXT] updateProfile called');
+    console.log('[CONTEXT] Profile exists?', !!profile);
+    console.log('[CONTEXT] Updates received:', JSON.stringify(updates, null, 2));
+    
+    if (!profile) {
+      console.error('[CONTEXT] No profile - returning false');
+      return false;
+    }
 
     try {
+      console.log('[CONTEXT] Calling updateProfileInDB...');
       const success = await updateProfileInDB(updates);
+      console.log('[CONTEXT] updateProfileInDB returned:', success);
       
       if (success) {
+        console.log('[CONTEXT] Update succeeded - updating local profile state');
+        // Update profile state so data persists and survives refresh
         setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
         setToast({ 
           message: "✓ Profile updated successfully!", 
           type: "success" 
         });
       } else {
+        console.error('[CONTEXT] Update failed - setting error toast');
         setToast({ 
           message: "Error updating profile. Please try again.", 
           type: "error" 
@@ -338,18 +374,32 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
       }
       
       setTimeout(clearToast, 3000);
+      console.log('[CONTEXT] Returning:', success);
+      return success;
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('[CONTEXT] Exception in updateProfile:', error);
       setToast({ 
         message: "An error occurred. Please try again.", 
         type: "error" 
       });
       setTimeout(clearToast, 3000);
+      return false;
     }
   };
 
-  const checkClash = async (activityId: string): Promise<boolean> => {
-    return await checkSchedulingConflict(activityId);
+  const checkClash = (activityId: string): boolean => {
+    // Return cached result if available
+    if (clashCache.has(activityId)) {
+      return clashCache.get(activityId)!;
+    }
+    
+    // Check async and cache the result
+    checkSchedulingConflict(activityId).then((hasClash) => {
+      setClashCache((prev) => new Map(prev).set(activityId, hasClash));
+    });
+    
+    // Return false initially (will update on next render if clash detected)
+    return false;
   };
 
   const getWeeklyCount = (): number => {
@@ -377,6 +427,17 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
   return (
     <ParticipantActivitiesContext.Provider value={value}>
       {children}
+      
+      {/* Toast notification UI */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-lg shadow-xl z-50 animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+            toast.type === 'error' ? 'bg-red-600 text-white' : 
+            toast.type === 'warning' ? 'bg-orange-600 text-white' : 
+            'bg-gray-900 text-white'
+        }`}>
+          <p className="font-medium">{toast.message}</p>
+        </div>
+      )}
     </ParticipantActivitiesContext.Provider>
   );
 }

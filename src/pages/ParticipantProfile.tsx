@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useParticipantActivities } from "../lib/ParticipantActivitiesContext";
 import type { Disability } from "../types/participant";
 
@@ -47,11 +47,16 @@ export default function ParticipantProfile() {
 
   const [status, setStatus] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Track the last saved values to prevent infinite loop
+  const lastSavedRef = useRef<typeof formData | null>(null);
 
   // Sync formData with profile when profile loads
   useEffect(() => {
     if (profile) {
-      setFormData({
+      console.log('[SYNC] Syncing profile data to form');
+      const syncedData = {
         id: profile.id,
         name: profile.name,
         email: profile.email,
@@ -63,36 +68,102 @@ export default function ParticipantProfile() {
         caregiverEmail: profile.caregiverEmail || "",
         caregiverPhone: profile.caregiverPhone || "",
         photoDataUrl: profile.photoDataUrl || "",
-      });
+      };
+      setFormData(syncedData);
+      // Also update lastSaved to match what we just loaded
+      lastSavedRef.current = syncedData;
+      // Mark initial load as complete after a short delay to ensure state is set
+      setTimeout(() => {
+        setIsInitialLoad(false);
+        console.log('[SYNC] Initial load complete - auto-save enabled');
+      }, 100);
     }
   }, [profile?.id]); // Only run when profile ID changes (i.e., profile loads)
 
   // Auto-save effect with debouncing
   useEffect(() => {
-    if (!profile) return; // Don't save if profile not loaded yet
+    console.log('[AUTOSAVE] Effect triggered');
+    console.log('[AUTOSAVE] Profile exists?', !!profile);
+    console.log('[AUTOSAVE] Profile ID:', profile?.id);
+    console.log('[AUTOSAVE] Is initial load?', isInitialLoad);
+    
+    if (!profile) {
+      console.log('[AUTOSAVE] Skipping - no profile loaded');
+      return; // Don't save if profile not loaded yet
+    }
 
+    if (isInitialLoad) {
+      console.log('[AUTOSAVE] Skipping - initial load in progress');
+      return; // Don't save during initial data load
+    }
+
+    // Compare against lastSaved instead of profile
+    const lastSaved = lastSavedRef.current;
+    if (!lastSaved) {
+      console.log('[AUTOSAVE] Skipping - no last saved reference');
+      return;
+    }
+
+    // Check if formData actually changed from what we last saved
+    const hasChanges = 
+      formData.name !== lastSaved.name ||
+      formData.email !== lastSaved.email ||
+      formData.phone !== lastSaved.phone ||
+      formData.age !== lastSaved.age ||
+      formData.disability !== lastSaved.disability ||
+      formData.isCaregiver !== lastSaved.isCaregiver ||
+      formData.caregiverName !== lastSaved.caregiverName ||
+      formData.caregiverEmail !== lastSaved.caregiverEmail ||
+      formData.caregiverPhone !== lastSaved.caregiverPhone;
+
+    if (!hasChanges) {
+      console.log('[AUTOSAVE] Skipping - no changes detected from last save');
+      return; // Don't save if nothing changed
+    }
+
+    console.log('[AUTOSAVE] Changes detected - setting up 1-second timeout...');
     const timeoutId = setTimeout(async () => {
+      console.log('[AUTOSAVE] Timeout fired! Starting save...');
       setIsSaving(true);
       console.log('Auto-saving profile changes...');
-      
-      const success = await updateProfile({
+      console.log('[AUTOSAVE] Data to save:', JSON.stringify({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         age: formData.age,
         disability: formData.disability,
         isCaregiver: formData.isCaregiver,
-        caregiverName: formData.caregiverName,
-        caregiverEmail: formData.caregiverEmail,
-        caregiverPhone: formData.caregiverPhone,
-        photoDataUrl: formData.photoDataUrl,
-      });
+      }, null, 2));
+      
+      try {
+        console.log('[AUTOSAVE] Calling updateProfile...');
+        const success = await updateProfile({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          age: formData.age,
+          disability: formData.disability,
+          isCaregiver: formData.isCaregiver,
+          caregiverName: formData.caregiverName,
+          caregiverEmail: formData.caregiverEmail,
+          caregiverPhone: formData.caregiverPhone,
+          photoDataUrl: formData.photoDataUrl,
+        });
 
-      if (success) {
-        console.log('✓ Profile saved successfully');
-        setStatus("Changes saved ✅");
-      } else {
-        console.error('❌ Failed to save profile');
+        console.log('[AUTOSAVE] updateProfile returned:', success);
+        
+        if (success) {
+          console.log('✓ Profile saved successfully');
+          // Update lastSaved to current formData to prevent re-saving
+          lastSavedRef.current = { ...formData };
+          console.log('[AUTOSAVE] Updated lastSaved reference');
+          setStatus("Changes saved ✅");
+        } else {
+          console.error('❌ Failed to save profile');
+          setStatus("Failed to save ❌");
+        }
+      } catch (error) {
+        console.error('[AUTOSAVE] Exception caught:', error);
         setStatus("Failed to save ❌");
       }
       
@@ -100,8 +171,12 @@ export default function ParticipantProfile() {
       setTimeout(() => setStatus(""), 2000);
     }, 1000); // Wait 1 second after user stops typing
 
-    return () => clearTimeout(timeoutId);
-  }, [formData, profile?.id]); // Re-run when formData changes
+    console.log('[AUTOSAVE] Cleanup function registered');
+    return () => {
+      console.log('[AUTOSAVE] Cleaning up timeout');
+      clearTimeout(timeoutId);
+    };
+  }, [formData, profile?.id, updateProfile, isInitialLoad]); // Re-run when formData changes
 
   const avatarText = useMemo(() => initials(formData.name), [formData.name]);
 

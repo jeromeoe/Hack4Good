@@ -99,7 +99,7 @@ function convertDBActivityToApp(
     meetingPoint: dbActivity.meeting_point || dbActivity.meeting_location || dbActivity.location,
     mealsProvided: dbActivity.meals_provided || false,
     accessibility,
-    capacity: dbActivity.participant_slots ?? (dbActivity as any).capacity ?? 20,
+    capacity: dbActivity.participant_slots || dbActivity.capacity || 20,
     registered: registrationCount,
     isRegistered,
     waitlisted,
@@ -184,8 +184,7 @@ export async function updateParticipantProfile(
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.age !== undefined) dbUpdates.age = updates.age;
     if (updates.disability !== undefined) dbUpdates.disability = updates.disability;
-    // Note: photo_url removed - column doesn't exist in database
-    // if (updates.photoDataUrl !== undefined) dbUpdates.photo_url = updates.photoDataUrl;
+    if (updates.photoDataUrl !== undefined) dbUpdates.photo_url = updates.photoDataUrl;
 
     // Handle caregiver info
     if (updates.isCaregiver !== undefined) {
@@ -211,13 +210,7 @@ export async function updateParticipantProfile(
 
     console.log('=== Updating profile ===');
     console.log('User ID:', user.id);
-    console.log('Updates to apply:', JSON.stringify(dbUpdates, null, 2));
-
-    // Check if there are any updates to apply
-    if (Object.keys(dbUpdates).length === 0) {
-      console.log('⚠️ No fields to update - skipping database call');
-      return true; // Return success since there's nothing to update
-    }
+    console.log('Updates to apply:', dbUpdates);
 
     const { error } = await supabase
       .from('profiles')
@@ -226,13 +219,6 @@ export async function updateParticipantProfile(
 
     if (error) {
       console.error('❌ Error updating profile:', error);
-      console.error('Error details:', JSON.stringify({
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      }, null, 2));
-      console.error('Attempted updates:', JSON.stringify(dbUpdates, null, 2));
       return false;
     }
 
@@ -353,27 +339,19 @@ export async function registerForActivity(
     console.log('✓ Activity ID converted to number:', activityNumericId);
 
     // Check activity capacity
-    console.log('Fetching activity details...');
     const { data: activity, error: activityError } = await supabase
       .from('activities')
-      .select('participant_slots, title')
+      .select('participant_slots, capacity')
       .eq('id', activityNumericId)
-      .maybeSingle();
+      .single();
 
-    if (activityError) {
-      console.error('❌ Database error fetching activity:', activityError);
-      return { success: false, waitlisted: false, message: `Database error: ${activityError.message}` };
+    if (activityError || !activity) {
+      console.error('❌ Activity not found:', activityError);
+      return { success: false, waitlisted: false, message: 'Activity not found' };
     }
-    
-    if (!activity) {
-      console.error('❌ Activity not found with ID:', activityNumericId);
-      return { success: false, waitlisted: false, message: 'Activity not found. It may have been deleted.' };
-    }
-    
-    console.log('✓ Activity found:', activity.title);
 
-    const maxCapacity = activity.participant_slots ?? 20;
-    console.log('✓ Capacity:', maxCapacity);
+    const maxCapacity = activity.participant_slots || activity.capacity || 20;
+    console.log('✓ Activity found, capacity:', maxCapacity);
 
     // Count current participant registrations from unified table
     const { data: registrations, error: countError } = await supabase
