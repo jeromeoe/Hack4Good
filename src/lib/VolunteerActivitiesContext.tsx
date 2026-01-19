@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "./supabase"; //
+import { supabase } from "./supabase";
 
 export const VOLUNTEER_ROLES = ["General support", "Wheelchair assistance"] as const;
 export type VolunteerRole = (typeof VOLUNTEER_ROLES)[number];
@@ -20,7 +20,7 @@ export type Filters = {
   date: "all" | "today" | "week";
   location: "all" | string;
   onlyNeeding: boolean;
-  area: "all" | string; // Added area to match your layout
+  area: "all" | string;
 };
 
 type Toast = { message: string } | null;
@@ -112,11 +112,15 @@ export function VolunteerActivitiesProvider({ children }: { children: React.Reac
         const myReg = eventRegs.find((r: any) => r.user_id === user.id);
         const { startISO, endISO } = synthesizeTimes(event.date);
 
+        // ✅ CRITICAL FIX: Look for 'volunteer_slots' first!
+        // This ensures that even if 'spots' is empty after an edit, we see the correct number.
+        const capacity = event.volunteer_slots ?? event.spots ?? 0;
+
         return {
           id: event.id,
           title: event.title,
           location: event.location,
-          capacity: event.spots || 0,
+          capacity: capacity,
           startISO,
           endISO,
           signedUp: eventRegs.length,
