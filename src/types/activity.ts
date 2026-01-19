@@ -6,4 +6,9 @@ export type Activity = {
   location: string;
   volunteerSlotsTotal: number;
   volunteerSlotsFilled: number;
+  //Staff / Participant Info 
+  participantCapacity: number;
+  participantRegistered: number;
+  waitlistCount: number;
+  tags: string[];
 };

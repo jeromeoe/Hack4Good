@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import RoleRoute from "./auth/RoleRoute";
 import VolunteerLayout from "./layouts/VolunteerLayout";
 import ParticipantLayout from "./layouts/ParticipantLayout";
+import StaffLayout from "./layouts/StaffLayout";
 
 import VolunteerHome from "./pages/VolunteerHome";
 import VolunteerCommitments from "./pages/VolunteerCommitments";
@@ -17,6 +18,7 @@ import ParticipantMyActivities from "./pages/ParticipantMyActivities";
 import ParticipantRegister from "./pages/ParticipantRegister";
 
 import StaffHome from "./pages/StaffHome";
+import StaffActivities from "./pages/StaffActivities";
 
 export default function App() {
   return (
@@ -47,11 +49,15 @@ export default function App() {
 
       {/* Staff Portal */}
       <Route element={<RoleRoute allow={["staff"]} />}>
-        <Route path="/staff" element={<StaffHome />} />
+        <Route path="/staff" element={<StaffLayout />}>
+          <Route index element={<StaffHome />} />
+          <Route path="activities" element={<StaffActivities />} />
+        </Route>
       </Route>
 
+      {/* Fallback Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    </Routes> 
   );
 }
