@@ -270,10 +270,10 @@ export default function ParticipantCalendar() {
                 : "No activities on this day (with current filters)"}
             </div>
           </div>
-
-          <div className="text-xs text-gray-500">
-            Tip: Green = registered • Blue = available • Gray = full • Yellow = waitlisted
-          </div>
+            <div className="text-xs text-gray-500"> 
+              Tip: Green = registered • Blue = available • Gray = full • Yellow = waitlisted
+             </div>
+          
         </div>
 
         <div className="mt-4 space-y-3">

@@ -1,9 +1,17 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  fetchParticipantProfile,
+  updateParticipantProfile as updateProfileInDB,
+  fetchActivitiesForParticipant,
+  registerForActivity as registerInDB,
+  cancelActivityRegistration as cancelInDB,
+  checkSchedulingConflict,
+  getWeeklyActivityCount as getWeeklyCountFromDB,
+} from "./participantHooks";
 import type { 
   ParticipantActivity, 
   ParticipantProfile, 
   Disability,
-  ActivityAccessibility 
 } from "../types/participant";
 
 export type ActivityFilters = {
@@ -25,21 +33,15 @@ type Ctx = {
   setFilters: (patch: Partial<ActivityFilters>) => void;
   toast: Toast;
   clearToast: () => void;
-  toggleRegistration: (activityId: string) => void;
-  updateProfile: (profile: Partial<ParticipantProfile>) => void;
-  checkClash: (activityId: string) => boolean;
+  toggleRegistration: (activityId: string) => Promise<void>;
+  updateProfile: (profile: Partial<ParticipantProfile>) => Promise<void>;
+  checkClash: (activityId: string) => Promise<boolean>;
   getWeeklyCount: () => number;
+  isLoading: boolean;
+  refreshActivities: () => Promise<void>;
 };
 
 const ParticipantActivitiesContext = createContext<Ctx | null>(null);
-
-function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  const as = new Date(aStart).getTime();
-  const ae = new Date(aEnd).getTime();
-  const bs = new Date(bStart).getTime();
-  const be = new Date(bEnd).getTime();
-  return as < be && bs < ae;
-}
 
 function startOfToday() {
   const d = new Date();
@@ -63,22 +65,6 @@ function endOfNext7Days() {
 function endOfNext30Days() {
   const d = startOfToday();
   d.setDate(d.getDate() + 30);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function getStartOfWeek() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day;
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function getEndOfWeek() {
-  const d = getStartOfWeek();
-  d.setDate(d.getDate() + 6);
   d.setHours(23, 59, 59, 999);
   return d;
 }
@@ -116,153 +102,10 @@ function isActivitySuitableForDisability(
 }
 
 export function ParticipantActivitiesProvider({ children }: { children: React.ReactNode }) {
-  // Mock profile data
-  const [profile, setProfile] = useState<ParticipantProfile>({
-    id: "p1",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+65 9123 4567",
-    age: 25,
-    disability: "Physical Disability",
-    isCaregiver: false,
-    photoDataUrl: "",
-  });
-
-  // Mock activities data
-  const [activities, setActivities] = useState<ParticipantActivity[]>([
-    {
-      id: "pa1",
-      title: "Art Jamming Session",
-      startISO: "2026-01-22T10:00:00+08:00",
-      endISO: "2026-01-22T12:00:00+08:00",
-      location: "MINDS HQ",
-      description: "A fun art jamming session where participants can explore their creativity through painting and drawing.",
-      meetingPoint: "Main lobby at MINDS HQ",
-      mealsProvided: true,
-      accessibility: {
-        wheelchairAccessible: true,
-        visuallyImpairedFriendly: true,
-        hearingImpairedFriendly: true,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: true,
-      },
-      capacity: 15,
-      registered: 8,
-      isRegistered: false,
-      waitlisted: false,
-      suitableFor: ["Physical Disability", "Visual Impairment", "Intellectual Disability", "Autism Spectrum"],
-    },
-    {
-      id: "pa2",
-      title: "Music Therapy Workshop",
-      startISO: "2026-01-23T14:00:00+08:00",
-      endISO: "2026-01-23T16:00:00+08:00",
-      location: "Community Center",
-      description: "Experience the therapeutic benefits of music through guided activities and exercises.",
-      meetingPoint: "Community Center entrance",
-      mealsProvided: false,
-      accessibility: {
-        wheelchairAccessible: true,
-        visuallyImpairedFriendly: true,
-        hearingImpairedFriendly: false,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: true,
-      },
-      capacity: 12,
-      registered: 10,
-      isRegistered: true,
-      waitlisted: false,
-      suitableFor: ["Physical Disability", "Visual Impairment", "Intellectual Disability", "Autism Spectrum"],
-    },
-    {
-      id: "pa3",
-      title: "Outdoor Walking Tour",
-      startISO: "2026-01-25T09:00:00+08:00",
-      endISO: "2026-01-25T11:30:00+08:00",
-      location: "Botanic Gardens",
-      description: "A guided walking tour through the beautiful Botanic Gardens with accessible pathways.",
-      meetingPoint: "Botanic Gardens Visitor Center",
-      mealsProvided: false,
-      accessibility: {
-        wheelchairAccessible: true,
-        visuallyImpairedFriendly: true,
-        hearingImpairedFriendly: true,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: false,
-      },
-      capacity: 20,
-      registered: 5,
-      isRegistered: false,
-      waitlisted: false,
-      suitableFor: ["Physical Disability", "Visual Impairment", "Hearing Impairment"],
-    },
-    {
-      id: "pa4",
-      title: "Cooking Class",
-      startISO: "2026-01-26T15:00:00+08:00",
-      endISO: "2026-01-26T17:30:00+08:00",
-      location: "MINDS Kitchen",
-      description: "Learn to prepare simple and delicious meals in an adapted kitchen environment.",
-      meetingPoint: "MINDS Kitchen, Level 2",
-      mealsProvided: true,
-      accessibility: {
-        wheelchairAccessible: true,
-        visuallyImpairedFriendly: false,
-        hearingImpairedFriendly: true,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: true,
-      },
-      capacity: 10,
-      registered: 10,
-      isRegistered: false,
-      waitlisted: false,
-      suitableFor: ["Physical Disability", "Hearing Impairment", "Intellectual Disability"],
-    },
-    {
-      id: "pa5",
-      title: "Movie Screening",
-      startISO: "2026-01-27T19:00:00+08:00",
-      endISO: "2026-01-27T21:00:00+08:00",
-      location: "Community Hall",
-      description: "Enjoy a movie screening with subtitles and audio description available.",
-      meetingPoint: "Community Hall main entrance",
-      mealsProvided: true,
-      accessibility: {
-        wheelchairAccessible: true,
-        visuallyImpairedFriendly: true,
-        hearingImpairedFriendly: true,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: true,
-      },
-      capacity: 30,
-      registered: 12,
-      isRegistered: true,
-      waitlisted: false,
-      suitableFor: ["Physical Disability", "Visual Impairment", "Hearing Impairment", "Intellectual Disability", "Autism Spectrum"],
-    },
-    {
-      id: "pa6",
-      title: "Gardening Workshop",
-      startISO: "2026-01-28T10:00:00+08:00",
-      endISO: "2026-01-28T12:00:00+08:00",
-      location: "MINDS Garden",
-      description: "Learn basic gardening skills and plant your own herbs to take home.",
-      meetingPoint: "MINDS Garden shed",
-      mealsProvided: false,
-      accessibility: {
-        wheelchairAccessible: false,
-        visuallyImpairedFriendly: true,
-        hearingImpairedFriendly: true,
-        intellectualDisabilityFriendly: true,
-        autismFriendly: true,
-      },
-      capacity: 8,
-      registered: 8,
-      isRegistered: false,
-      waitlisted: false,
-      suitableFor: ["Visual Impairment", "Hearing Impairment", "Intellectual Disability"],
-    },
-  ]);
+  const [profile, setProfile] = useState<ParticipantProfile | null>(null);
+  const [activities, setActivities] = useState<ParticipantActivity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [weeklyCount, setWeeklyCount] = useState(0);
 
   const [filters, setFiltersState] = useState<ActivityFilters>({
     date: "all",
@@ -272,6 +115,41 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
   });
 
   const [toast, setToast] = useState<Toast>(null);
+
+  // Load participant data on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+
+        // Load profile
+        const profileData = await fetchParticipantProfile();
+        setProfile(profileData);
+
+        if (profileData) {
+          // Load activities
+          const activitiesData = await fetchActivitiesForParticipant();
+          setActivities(activitiesData);
+
+          // Load weekly count
+          const count = await getWeeklyCountFromDB();
+          setWeeklyCount(count);
+        } else {
+          console.log('No profile found - user may not be logged in as participant');
+        }
+      } catch (error) {
+        console.error('Error loading participant data:', error);
+        setToast({ 
+          message: "Error loading data. Please try refreshing the page.", 
+          type: "error" 
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
 
   // Extract unique locations
   const locations = useMemo(() => {
@@ -338,94 +216,144 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
 
   const clearToast = () => setToast(null);
 
-  const toggleRegistration = (activityId: string) => {
-    setActivities((prev) =>
-      prev.map((a) => {
-        if (a.id !== activityId) return a;
+  const refreshActivities = async () => {
+    if (!profile) return;
+    
+    try {
+      const activitiesData = await fetchActivitiesForParticipant();
+      setActivities(activitiesData);
+      
+      const count = await getWeeklyCountFromDB();
+      setWeeklyCount(count);
+    } catch (error) {
+      console.error('Error refreshing activities:', error);
+    }
+  };
 
-        // Check for clash
-        const hasClash = checkClash(activityId);
+  const toggleRegistration = async (activityId: string) => {
+    if (!profile) {
+      setToast({ 
+        message: "Profile not loaded. Please try again.", 
+        type: "error" 
+      });
+      setTimeout(clearToast, 3000);
+      return;
+    }
+
+    const activity = activities.find(a => a.id === activityId);
+    if (!activity) return;
+
+    try {
+      if (!activity.isRegistered) {
+        // Registering
         
-        // Check weekly limit (max 3 activities per week)
-        const weeklyCount = getWeeklyCount();
-
-        if (!a.isRegistered) {
-          // Registering
-          if (hasClash) {
-            setToast({ 
-              message: "⚠️ Clash detected: This activity overlaps with another registered activity.", 
-              type: "warning" 
-            });
-            return a;
-          }
-
-          if (weeklyCount >= 3) {
-            setToast({ 
-              message: "⚠️ Weekly limit reached: You can only register for 3 activities per week.", 
-              type: "warning" 
-            });
-            return a;
-          }
-
-          if (a.registered >= a.capacity) {
-            setToast({ 
-              message: "✓ You've been added to the waitlist for this activity.", 
-              type: "success" 
-            });
-            return { ...a, waitlisted: true };
-          }
-
+        // Check for clash
+        const hasClash = await checkSchedulingConflict(activityId);
+        if (hasClash) {
           setToast({ 
-            message: "✓ Successfully registered for this activity!", 
+            message: "⚠️ Clash detected: This activity overlaps with another registered activity.", 
+            type: "warning" 
+          });
+          setTimeout(clearToast, 3000);
+          return;
+        }
+
+        // Check weekly limit
+        if (weeklyCount >= 3) {
+          setToast({ 
+            message: "⚠️ Weekly limit reached: You can only register for 3 activities per week.", 
+            type: "warning" 
+          });
+          setTimeout(clearToast, 3000);
+          return;
+        }
+
+        // Register
+        const result = await registerInDB(activityId);
+        
+        if (result.success) {
+          setToast({ 
+            message: result.waitlisted 
+              ? "✓ You've been added to the waitlist for this activity." 
+              : "✓ Successfully registered for this activity!", 
             type: "success" 
           });
-          return { ...a, isRegistered: true, registered: a.registered + 1 };
+          
+          // Refresh activities to get updated data
+          await refreshActivities();
         } else {
-          // Cancelling
+          setToast({ 
+            message: `Error: ${result.message}`, 
+            type: "error" 
+          });
+        }
+      } else {
+        // Cancelling
+        const success = await cancelInDB(activityId);
+        
+        if (success) {
           setToast({ 
             message: "✓ Successfully cancelled your registration.", 
             type: "success" 
           });
-          return { ...a, isRegistered: false, registered: Math.max(0, a.registered - 1), waitlisted: false };
+          
+          // Refresh activities to get updated data
+          await refreshActivities();
+        } else {
+          setToast({ 
+            message: "Error cancelling registration. Please try again.", 
+            type: "error" 
+          });
         }
-      })
-    );
+      }
 
-    setTimeout(clearToast, 3000);
+      setTimeout(clearToast, 3000);
+    } catch (error) {
+      console.error('Error toggling registration:', error);
+      setToast({ 
+        message: "An error occurred. Please try again.", 
+        type: "error" 
+      });
+      setTimeout(clearToast, 3000);
+    }
   };
 
-  const updateProfile = (updates: Partial<ParticipantProfile>) => {
-    setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
-    setToast({ 
-      message: "✓ Profile updated successfully!", 
-      type: "success" 
-    });
-    setTimeout(clearToast, 3000);
+  const updateProfile = async (updates: Partial<ParticipantProfile>) => {
+    if (!profile) return;
+
+    try {
+      const success = await updateProfileInDB(updates);
+      
+      if (success) {
+        setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+        setToast({ 
+          message: "✓ Profile updated successfully!", 
+          type: "success" 
+        });
+      } else {
+        setToast({ 
+          message: "Error updating profile. Please try again.", 
+          type: "error" 
+        });
+      }
+      
+      setTimeout(clearToast, 3000);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setToast({ 
+        message: "An error occurred. Please try again.", 
+        type: "error" 
+      });
+      setTimeout(clearToast, 3000);
+    }
   };
 
-  const checkClash = (activityId: string): boolean => {
-    const activity = activities.find((a) => a.id === activityId);
-    if (!activity) return false;
-
-    return myActivities.some((registered) => {
-      if (registered.id === activityId) return false;
-      return overlaps(
-        activity.startISO,
-        activity.endISO,
-        registered.startISO,
-        registered.endISO
-      );
-    });
+  const checkClash = async (activityId: string): Promise<boolean> => {
+    return await checkSchedulingConflict(activityId);
   };
 
   const getWeeklyCount = (): number => {
-    const weekStart = getStartOfWeek();
-    const weekEnd = getEndOfWeek();
-
-    return myActivities.filter((a) => {
-      const start = new Date(a.startISO);
-      return start >= weekStart && start <= weekEnd;
-    }).length;
+    return weeklyCount;
   };
 
   const value: Ctx = {
@@ -442,6 +370,8 @@ export function ParticipantActivitiesProvider({ children }: { children: React.Re
     updateProfile,
     checkClash,
     getWeeklyCount,
+    isLoading,
+    refreshActivities,
   };
 
   return (

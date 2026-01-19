@@ -2,7 +2,28 @@ import { useParticipantActivities } from "../lib/ParticipantActivitiesContext";
 import { Link } from "react-router-dom";
 
 export default function ParticipantHome() {
-  const { profile, myActivities, activities, getWeeklyCount } = useParticipantActivities();
+  const { profile, myActivities, activities, getWeeklyCount, isLoading } = useParticipantActivities();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="rounded-xl border bg-white p-8 text-center shadow-sm">
+        <div className="text-6xl mb-4">⚠️</div>
+        <div className="text-lg font-semibold text-gray-900 mb-2">Profile Not Found</div>
+        <div className="text-gray-600">Please make sure you're logged in as a participant.</div>
+      </div>
+    );
+  }
 
   const weeklyCount = getWeeklyCount();
   const upcomingActivities = myActivities
