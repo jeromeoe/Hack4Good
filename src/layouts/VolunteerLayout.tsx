@@ -1,8 +1,11 @@
-import { NavLink, Outlet, Link } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { AREA_OPTIONS } from "../lib/locations";
 import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
+import { supabase } from "../lib/supabase";
+import { clearMockAuth } from "../auth/roles";
 
 export default function VolunteerLayout() {
+  const navigate = useNavigate();
   const { filters, setFilters } = useVolunteerActivities();
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -12,6 +15,12 @@ export default function VolunteerLayout() {
         ? "bg-white shadow border text-gray-900"
         : "text-gray-600 hover:text-gray-900 hover:bg-white/60",
     ].join(" ");
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    clearMockAuth();
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -39,13 +48,13 @@ export default function VolunteerLayout() {
             </span>
           </div>
 
-          {/* My Account link */}
-          <Link
-            to="/volunteer/account"
-            className="flex items-center gap-2 hover:text-gray-900"
+          {/* Logout button */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 hover:text-gray-900 text-sm font-medium"
           >
-            👤 <span className="font-medium">My Account</span>
-          </Link>
+            🚪 <span>Logout</span>
+          </button>
         </div>
       </div>
 

@@ -23,9 +23,9 @@ export interface Database {
           age: number | null
           disability: string | null
           caregiver_info: Json | null
-          photo_url: string | null
-          created_at: string
-          updated_at: string
+          photo_url?: string | null  // Optional - might not exist
+          created_at?: string  // Optional - might not exist
+          updated_at?: string  // Optional - might not exist
         }
         Insert: {
           id: string  // UUID from auth
@@ -62,26 +62,15 @@ export interface Database {
           date: string
           location: string
           category: string
-          spots: number
           image: string
           comments: string
           activity_type: string
           disability_access: string
-          // New columns added by migration
-          description: string
-          start_time: string
-          end_time: string
-          meeting_point: string
-          meals_provided: boolean
-          capacity: number
-          wheelchair_accessible: boolean
-          visually_impaired_friendly: boolean
-          hearing_impaired_friendly: boolean
-          intellectual_disability_friendly: boolean
-          autism_friendly: boolean
-          suitable_disabilities: string[]
-          updated_at: string
-          created_by: string | null  // UUID
+          meeting_location: string | null
+          time_start: string | null
+          time_end: string | null
+          volunteer_slots: number | null
+          participant_slots: number | null
         }
         Insert: {
           id?: number  // Auto-generated
@@ -90,25 +79,15 @@ export interface Database {
           date: string
           location: string
           category: string
-          spots: number
           image?: string
           comments?: string
           activity_type?: string
           disability_access?: string
-          description?: string
-          start_time?: string
-          end_time?: string
-          meeting_point?: string
-          meals_provided?: boolean
-          capacity?: number
-          wheelchair_accessible?: boolean
-          visually_impaired_friendly?: boolean
-          hearing_impaired_friendly?: boolean
-          intellectual_disability_friendly?: boolean
-          autism_friendly?: boolean
-          suitable_disabilities?: string[]
-          updated_at?: string
-          created_by?: string | null
+          meeting_location?: string | null
+          time_start?: string | null
+          time_end?: string | null
+          volunteer_slots?: number | null
+          participant_slots?: number | null
         }
         Update: {
           id?: number
@@ -117,25 +96,15 @@ export interface Database {
           date?: string
           location?: string
           category?: string
-          spots?: number
           image?: string
           comments?: string
           activity_type?: string
           disability_access?: string
-          description?: string
-          start_time?: string
-          end_time?: string
-          meeting_point?: string
-          meals_provided?: boolean
-          capacity?: number
-          wheelchair_accessible?: boolean
-          visually_impaired_friendly?: boolean
-          hearing_impaired_friendly?: boolean
-          intellectual_disability_friendly?: boolean
-          autism_friendly?: boolean
-          suitable_disabilities?: string[]
-          updated_at?: string
-          created_by?: string | null
+          meeting_location?: string | null
+          time_start?: string | null
+          time_end?: string | null
+          volunteer_slots?: number | null
+          participant_slots?: number | null
         }
       }
       activity_registrations: {
