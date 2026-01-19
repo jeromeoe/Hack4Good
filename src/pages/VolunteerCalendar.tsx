@@ -3,6 +3,9 @@ import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
 import VolunteerFilters from "../components/VolunteerFilters";
 import VolunteerRoleSelect from "../components/VolunteerRoleSelect";
 
+import ActivityDetailModal from "../components/ActivityDetailModal";
+import type { ParticipantActivity } from "../types/participant";
+
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -51,6 +54,53 @@ export default function VolunteerCalendar() {
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
+  // ✅ Modal state (ParticipantCalendar-style) - store a ParticipantActivity
+  const [selectedActivity, setSelectedActivity] = useState<ParticipantActivity | null>(null);
+
+  // ✅ Convert volunteer activity -> ParticipantActivity (so we can reuse ActivityDetailModal)
+  function convertToParticipantActivity(activity: any): ParticipantActivity {
+    return {
+      id: String(activity.id),
+      title: activity.title,
+      startISO: activity.startISO || new Date().toISOString(),
+      endISO: activity.endISO || new Date().toISOString(),
+      location: activity.location,
+      description:
+        "Volunteer activity - help support participants with special needs. Your contribution makes a meaningful difference in the lives of individuals with special needs.",
+      meetingPoint: activity.location,
+      mealsProvided: false,
+      accessibility: {
+        wheelchairAccessible: true,
+        visuallyImpairedFriendly: true,
+        hearingImpairedFriendly: true,
+        intellectualDisabilityFriendly: true,
+        autismFriendly: true,
+      },
+      capacity: activity.capacity ?? activity.volunteerSlotsTotal ?? 10,
+      registered: activity.signedUp ?? activity.volunteerSlotsFilled ?? 0,
+      isRegistered: !!activity.isSignedUp,
+      waitlisted: false,
+      suitableFor: [
+        "Physical Disability",
+        "Visual Impairment",
+        "Hearing Impairment",
+        "Intellectual Disability",
+        "Autism Spectrum",
+        "Multiple Disabilities",
+        "Other",
+      ],
+    };
+  }
+
+  // ✅ One function to open activity without triggering day selection
+  function openActivity(a: any, e?: any) {
+    e?.stopPropagation();
+    setSelectedActivity(convertToParticipantActivity(a));
+  }
+  function closeActivity() {
+    setSelectedActivity(null);
+  }
+
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(monthAnchor));
     const end = endOfMonth(monthAnchor);
@@ -92,7 +142,8 @@ export default function VolunteerCalendar() {
   }
   function goToday() {
     const t = new Date();
-    setMonthAnchor(new Date(t.getFullYear(), t.getMonth(), 1));
+    setMonthAnchor_extract = new Date(t.getFullYear(), t.getMonth(), 1);
+    setMonthAnchor(setMonthAnchor_extract);
     setSelectedDay(t);
   }
 
@@ -196,8 +247,9 @@ export default function VolunteerCalendar() {
                     return (
                       <div
                         key={a.id}
-                        className={`truncate rounded-md px-2 py-1 text-[11px] font-medium ${tag}`}
+                        className={`truncate rounded-md px-2 py-1 text-[11px] font-medium ${tag} hover:opacity-80`}
                         title={`${a.title} • ${fmtTimeRange(a.startISO, a.endISO)}`}
+                        onClick={(e) => openActivity(a, e)}
                       >
                         {a.title}
                       </div>
@@ -231,9 +283,7 @@ export default function VolunteerCalendar() {
             </div>
           </div>
 
-          <div className="text-xs text-gray-500">
-            Tip: Blue = you signed up • Green = available • Gray = full
-          </div>
+          <div className="text-xs text-gray-500">Tip: Blue = you signed up • Green = available • Gray = full</div>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -254,7 +304,11 @@ export default function VolunteerCalendar() {
               : "bg-black text-white hover:bg-gray-900";
 
             return (
-              <div key={a.id} className="rounded-xl border bg-white p-4">
+              <div
+                key={a.id}
+                className="rounded-xl border bg-white p-4 hover:border-blue-300 transition cursor-pointer"
+                onClick={() => openActivity(a)}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="text-base font-semibold text-gray-900">{a.title}</div>
@@ -286,7 +340,10 @@ export default function VolunteerCalendar() {
                   <button
                     type="button"
                     disabled={full}
-                    onClick={() => toggleSignup(a.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSignup(a.id);
+                    }}
                     className={`rounded-md px-4 py-2 text-sm font-medium transition ${btnClass}`}
                   >
                     {btnText}
@@ -297,6 +354,16 @@ export default function VolunteerCalendar() {
           })}
         </div>
       </div>
+
+      {/* ✅ Activity Detail Modal (EXACTLY like ParticipantCalendar) */}
+      {selectedActivity && (
+        <ActivityDetailModal
+          activity={selectedActivity}
+          onClose={closeActivity}
+          onToggleRegistration={() => toggleSignup(Number(selectedActivity.id))}
+          hasClash={false}
+        />
+      )}
     </div>
   );
 }
