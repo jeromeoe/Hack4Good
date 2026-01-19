@@ -1,6 +1,4 @@
 // src/types/database.ts
-// Supabase Database Types - Unified Schema for by3
-
 export type Json =
   | string
   | number
@@ -14,10 +12,10 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id: string  // UUID from auth.users
+          id: string
           email: string
           full_name: string
-          role: string  // 'participant' | 'volunteer' | 'staff'
+          role: string
           phone: string | null
           age: number | null
           disability: string | null
@@ -55,7 +53,7 @@ export interface Database {
       }
       activities: {
         Row: {
-          id: number  // BIGINT
+          id: number
           created_at: string
           title: string
           date: string
@@ -66,7 +64,6 @@ export interface Database {
           comments: string
           activity_type: string
           disability_access: string
-          // Extra Mile Hackathon Columns
           description: string
           start_time: string
           end_time: string
@@ -137,11 +134,12 @@ export interface Database {
           created_by?: string | null
         }
       }
-      registrations: { // Table for Volunteer signups
+      // ✅ THIS IS THE MISSING TABLE CAUSING THE ERROR
+      registrations: {
         Row: {
           id: number
-          user_id: string // UUID
-          activity_id: number // BIGINT
+          user_id: string
+          activity_id: number
           role: string
           created_at: string
         }
@@ -160,11 +158,11 @@ export interface Database {
           created_at?: string
         }
       }
-      activity_registrations: { // Table for Participant signups
+      activity_registrations: {
         Row: {
           id: number
           activity_id: number
-          participant_id: string // UUID
+          participant_id: string
           status: 'registered' | 'waitlisted' | 'cancelled'
           created_at: string
           updated_at: string
@@ -199,7 +197,6 @@ export interface Database {
   }
 }
 
-// Helper types for caregiver info
 export interface CaregiverInfo {
   name: string
   email?: string

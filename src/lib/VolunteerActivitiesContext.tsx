@@ -1,18 +1,18 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase"; //
 
 export const VOLUNTEER_ROLES = ["General support", "Wheelchair assistance"] as const;
 export type VolunteerRole = (typeof VOLUNTEER_ROLES)[number];
 
 export type Activity = {
-  id: number; // Changed from string to number to match DB
+  id: number;
   title: string;
   startISO: string;
   endISO: string;
   location: string;
   capacity: number;
-  signedUp: number; // How many people total
-  isSignedUp: boolean; // Is the CURRENT user signed up?
+  signedUp: number; // Total count
+  isSignedUp: boolean; // Did *I* sign up?
   myRole?: VolunteerRole;
 };
 
@@ -20,6 +20,7 @@ export type Filters = {
   date: "all" | "today" | "week";
   location: "all" | string;
   onlyNeeding: boolean;
+  area: "all" | string; // Added area to match your layout
 };
 
 type Toast = { message: string } | null;
@@ -39,14 +40,12 @@ type Ctx = {
 
 const VolunteerActivitiesContext = createContext<Ctx | null>(null);
 
-// Helper: Convert "2024-05-20" -> ISO String for 9AM - 12PM
+// Helper: Staff usually save "2024-05-20", we convert to "2024-05-20T09:00:00"
 function synthesizeTimes(dateStr: string) {
   const start = new Date(dateStr);
-  start.setHours(9, 0, 0, 0); // Default to 9 AM
-  
+  start.setHours(9, 0, 0, 0); // Default 9 AM
   const end = new Date(dateStr);
-  end.setHours(12, 0, 0, 0); // Default to 12 PM
-  
+  end.setHours(12, 0, 0, 0); // Default 12 PM
   return {
     startISO: start.toISOString(),
     endISO: end.toISOString()
@@ -72,112 +71,126 @@ function endOfNext7Days() {
 
 export function VolunteerActivitiesProvider({ children }: { children: React.ReactNode }) {
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [_loading, setLoading] = useState(true);
   const [filters, _setFilters] = useState<Filters>({
     date: "all",
     location: "all",
     onlyNeeding: false,
+    area: "all"
   });
   const [toast, setToast] = useState<Toast>(null);
-  const clearToast = () => setToast(null);
-  const setFilters = (patch: Partial<Filters>) =>
-    _setFilters((prev) => ({ ...prev, ...patch }));
 
-  function showToast(message: string) {
-    setToast({ message });
-    window.setTimeout(() => setToast(null), 2500);
-  }
-
-  function setMyRole(activityId: number, role: VolunteerRole) {
-    setActivities((prev) =>
-      prev.map((a) => (a.id === activityId ? { ...a, myRole: role } : a))
-    );
-  }
-
-  // --- 1. FETCH REAL DATA ---
+  // --- 1. FETCH DATA (Real Supabase) ---
   useEffect(() => {
     fetchData();
   }, []);
 
   async function fetchData() {
-    setLoading(true);
-    
+    // A. Get User
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-  
-    // 1. Fetch all activities posted by Staff
-    const { data: events } = await supabase
+    if (!user) return;
+
+    // B. Get Activities
+    const { data: events, error: err1 } = await supabase
       .from('activities')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (err1) console.error("Error fetching activities:", err1);
+
+    // C. Get Registrations (My friends' table)
+    const { data: allRegs, error: err2 } = await supabase
+      .from('registrations')
       .select('*');
-  
-    // 2. Fetch all signups from your specific REGISTRATIONS table
-    // NOTE: The typed Supabase `Database` may not include this table in all environments.
-    // Fall back to `any` here to avoid `never` typing errors.
-    const { data: allRegistrations } = await (supabase as any)
-      .from("registrations") // Targeting your friend's table name
-      .select("*");
-  
-    if (events && allRegistrations) {
+      
+    if (err2) console.error("Error fetching registrations:", err2);
+
+    // D. Merge
+    if (events) {
       const merged = events.map((event: any) => {
-        const eventRegs = (allRegistrations as any[]).filter((r) => r.activity_id === event.id);
-        const myReg = eventRegs.find((r) => r.user_id === user.id);
+        // Find registrations for this specific event
+        const eventRegs = allRegs?.filter((r: any) => r.activity_id === event.id) || [];
+        const myReg = eventRegs.find((r: any) => r.user_id === user.id);
         const { startISO, endISO } = synthesizeTimes(event.date);
-  
+
         return {
           id: event.id,
           title: event.title,
           location: event.location,
-          capacity: event.spots,
-          signedUp: eventRegs.length,
-          isSignedUp: !!myReg,
-          myRole: (myReg?.role as VolunteerRole | undefined) || "General support",
+          capacity: event.spots || 0,
           startISO,
           endISO,
+          signedUp: eventRegs.length,
+          isSignedUp: !!myReg,
+          myRole: (myReg?.role as VolunteerRole) || "General support"
         };
       });
       setActivities(merged);
     }
-    setLoading(false);
   }
-  
+
+  // --- Helpers ---
+  function clearToast() { setToast(null); }
+  function showToast(message: string) {
+    setToast({ message });
+    setTimeout(() => setToast(null), 3000);
+  }
+  function setFilters(patch: Partial<Filters>) {
+    _setFilters((prev) => ({ ...prev, ...patch }));
+  }
+
+  // Local state update only (Role selection before signup)
+  function setMyRole(activityId: number, role: VolunteerRole) {
+    setActivities((prev) => prev.map((a) => (a.id === activityId ? { ...a, myRole: role } : a)));
+  }
+
+  // --- 2. TOGGLE SIGNUP (Real DB) ---
   async function toggleSignup(activityId: number) {
     const target = activities.find(a => a.id === activityId);
+    if (!target) return;
+
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !target) return;
-  
+    if (!user) {
+      showToast("Please log in.");
+      return;
+    }
+
     if (target.isSignedUp) {
-      // Cancel: Delete from REGISTRATIONS
-      const { error } = await (supabase as any)
-        .from("registrations")
+      // CANCEL
+      const { error } = await supabase
+        .from('registrations')
         .delete()
         .match({ user_id: user.id, activity_id: activityId });
 
-      if (error) showToast("Error cancelling: " + error.message);
-      else showToast("Unregistered successfully.");
+      if (error) {
+        showToast("Error: " + error.message);
+      } else {
+        showToast("Cancelled successfully.");
+        fetchData(); // Refresh to sync counts
+      }
     } else {
+      // SIGN UP
       if (target.signedUp >= target.capacity) {
         showToast("Activity is full!");
         return;
       }
+      const { error } = await supabase
+        .from('registrations')
+        .insert({
+          user_id: user.id,
+          activity_id: activityId,
+          role: target.myRole || "General support"
+        });
 
-      // Signup: Insert into REGISTRATIONS
-      const { error } = await (supabase as any).from("registrations").insert({
-        user_id: user.id,
-        activity_id: activityId,
-        role: target.myRole || "General support",
-      });
-
-      if (error) showToast("Error signing up: " + error.message);
-      else showToast("Registration successful!");
+      if (error) {
+        showToast("Error: " + error.message);
+      } else {
+        showToast("Signed up!");
+        fetchData(); // Refresh
+      }
     }
-
-    fetchData(); // Refresh to sync counts
   }
 
-  // --- Derived State (Filters) ---
+  // --- Derived State (Filtering) ---
   const locations = useMemo(() => {
     const set = new Set<string>();
     activities.forEach((a) => set.add(a.location));
@@ -193,17 +206,21 @@ export function VolunteerActivitiesProvider({ children }: { children: React.Reac
     const t1Today = endOfToday().getTime();
     const t1Week = endOfNext7Days().getTime();
 
-    return activities
-      .filter((a) => {
-        if (filters.location !== "all" && a.location !== filters.location) return false;
-        const st = new Date(a.startISO).getTime();
-        if (filters.date === "today" && (st < t0 || st > t1Today)) return false;
-        if (filters.date === "week" && (st < t0 || st > t1Week)) return false;
-        if (filters.onlyNeeding) {
-          if (!a.isSignedUp && a.signedUp >= a.capacity) return false;
-        }
-        return true;
-      });
+    return activities.filter((a) => {
+      // Location Filter
+      if (filters.location !== "all" && a.location !== filters.location) return false;
+      
+      // Date Filter
+      const st = new Date(a.startISO).getTime();
+      if (filters.date === "today" && (st < t0 || st > t1Today)) return false;
+      if (filters.date === "week" && (st < t0 || st > t1Week)) return false;
+
+      // "Only Needing" Filter
+      if (filters.onlyNeeding) {
+        if (!a.isSignedUp && a.signedUp >= a.capacity) return false;
+      }
+      return true;
+    });
   }, [activities, filters]);
 
   return (

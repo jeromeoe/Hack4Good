@@ -1,62 +1,134 @@
-import { useState } from "react";
-import type { Activity } from "../types/activity";
-import ActivityCard from "../components/ActivityCard";
-import { Button } from "../components/ui/button";
+import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { useVolunteerActivities, type Activity } from "../lib/VolunteerActivitiesContext"; //
+import { Calendar, MapPin, CheckCircle } from "lucide-react";
 
+// Helper to safely get the start date string
+function getStartISO(a: Activity) {
+  return a.startISO;
+}
+
+function formatStart(startISO: string) {
+  const start = new Date(startISO);
+  return {
+    date: start.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }),
+    time: start.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    start,
+  };
+}
 
 export default function VolunteerHome() {
-  const [signedUpIds, setSignedUpIds] = useState<number[]>([]);
+  const { activities, commitments } = useVolunteerActivities(); 
+  const now = new Date();
+  const myActivities = commitments;
 
-  const activities: Activity[] = [
-    {
-      id: 1,
-      title: "Art Jamming",
-      startTime: "Tue 20 Jan, 10:00",
-      endTime: "12:00",
-      location: "MINDS HQ",
-      volunteerSlotsTotal: 5,
-      volunteerSlotsFilled: 2,
-    },
-    {
-      id: 2,
-      title: "Music Therapy",
-      startTime: "Wed 21 Jan, 14:00",
-      endTime: "16:00",
-      location: "MINDS West",
-      volunteerSlotsTotal: 3,
-      volunteerSlotsFilled: 3,
-    },
-  ];
+  const upcomingMyActivities = useMemo(() => {
+    return myActivities
+      .filter((a) => new Date(getStartISO(a)) > now)
+      .sort((a, b) => new Date(getStartISO(a)).getTime() - new Date(getStartISO(b)).getTime())
+      .slice(0, 3);
+  }, [myActivities, now]);
 
-  function toggleSignup(id: number) {
-    setSignedUpIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
+  const recommended = useMemo(() => {
+    return activities
+      .filter((a) => {
+        const start = new Date(getStartISO(a));
+        const already = myActivities.some((m) => m.id === a.id);
+        return start > now && !already;
+      })
+      .sort((a, b) => new Date(getStartISO(a)).getTime() - new Date(getStartISO(b)).getTime())
+      .slice(0, 3);
+  }, [activities, myActivities, now]);
+
+  const upcomingCount = activities.filter((a) => new Date(getStartISO(a)) > now).length;
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-5xl p-6">
-        <h1 className="text-4xl font-bold text-blue-600">
-          Volunteer Activities
-        </h1>
-
-        <p className="mt-3 text-gray-600">
-          Sign up for activities that need volunteers.
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* Welcome Card - CLEANED UP */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h1 className="text-3xl font-bold text-blue-600">Welcome back, Volunteer!</h1>
+        <p className="mt-2 text-gray-600">
+          Here’s a quick overview of your volunteering impact.
         </p>
-        <Button className="mt-4">Browse Activities</Button>
+      </div>
 
-
-        <div className="mt-6 space-y-4">
-          {activities.map((activity) => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
-              signedUp={signedUpIds.includes(activity.id)}
-              onToggle={() => toggleSignup(activity.id)}
-            />
-          ))}
+      {/* Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition">
+          <div className="text-sm font-medium text-gray-600">My Sign-ups</div>
+          <div className="mt-2 text-3xl font-bold text-blue-600">{myActivities.length}</div>
+          <Link to="/volunteer/activities" className="mt-3 inline-block text-sm text-blue-600 hover:underline">
+            View activities →
+          </Link>
         </div>
+
+        <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition">
+          <div className="text-sm font-medium text-gray-600">Upcoming Opportunities</div>
+          <div className="mt-2 text-3xl font-bold text-green-600">{upcomingCount}</div>
+          <div className="mt-3 text-sm text-gray-500">Events available to join</div>
+        </div>
+
+        <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition">
+          <div className="text-sm font-medium text-gray-600">Recommended</div>
+          <div className="mt-2 text-3xl font-bold text-purple-600">{recommended.length}</div>
+          <Link to="/volunteer/activities" className="mt-3 inline-block text-sm text-purple-600 hover:underline">
+            Browse activities →
+          </Link>
+        </div>
+      </div>
+
+      {/* My Upcoming Section */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">My Upcoming Activities</h2>
+          <Link to="/volunteer/activities" className="text-sm text-blue-600 hover:underline">
+            View all
+          </Link>
+        </div>
+
+        {upcomingMyActivities.length === 0 ? (
+          <div className="text-gray-500 italic py-4">
+            You haven’t signed up for any upcoming activities yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {upcomingMyActivities.map((a) => {
+              const { date, time, start } = formatStart(getStartISO(a));
+              const days = Math.max(0, Math.ceil((start.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+              return (
+                <div key={a.id} className="flex items-center justify-between rounded-lg border bg-gray-50 p-4 hover:shadow-sm transition-shadow">
+                  <div className="space-y-1">
+                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      {a.title}
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      <Calendar className="h-3 w-3" /> {date} at {time}
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      <MapPin className="h-3 w-3" /> {a.location}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-sm font-medium text-gray-500">{days} days left</span>
+                    <span className="inline-block mt-1 text-[10px] uppercase tracking-wider font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                      {a.myRole}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
