@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, MapPin, Calendar, Users, Edit2, Search, Accessibility } from "lucide-react";
+import { Plus, Trash2, MapPin, Calendar, Users, Edit2, Search, Accessibility, Clock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 // Shadcn Components
@@ -30,7 +30,11 @@ interface Activity {
   title: string;
   date: string;
   location: string;
-  spots: number;
+  meeting_location?: string;
+  time_start?: string;
+  time_end?: string;
+  volunteer_slots?: number;
+  participant_slots?: number;
   image: string;
   category: string;
   activity_type: string;
@@ -57,7 +61,11 @@ export default function StaffActivities() {
     title: "",
     date: "",
     location: "",
-    spots: "",
+    meeting_location: "",
+    time_start: "",
+    time_end: "",
+    volunteer_slots: "",
+    participant_slots: "",
     activity_type: "Social",
     disability_access: "Universal",
     comments: "",
@@ -83,8 +91,17 @@ export default function StaffActivities() {
   const openCreateModal = () => {
     setEditingId(null);
     setFormData({
-      title: "", date: "", location: "", spots: "",
-      activity_type: "Social", disability_access: "Universal", comments: ""
+      title: "", 
+      date: "", 
+      location: "", 
+      meeting_location: "",
+      time_start: "",
+      time_end: "",
+      volunteer_slots: "",
+      participant_slots: "",
+      activity_type: "Social", 
+      disability_access: "Universal", 
+      comments: ""
     });
     setIsModalOpen(true);
   };
@@ -95,7 +112,11 @@ export default function StaffActivities() {
       title: activity.title,
       date: activity.date,
       location: activity.location,
-      spots: activity.spots.toString(),
+      meeting_location: activity.meeting_location || "",
+      time_start: activity.time_start || "",
+      time_end: activity.time_end || "",
+      volunteer_slots: activity.volunteer_slots?.toString() || "",
+      participant_slots: activity.participant_slots?.toString() || "",
       activity_type: activity.activity_type || "Social",
       disability_access: activity.disability_access || "Universal",
       comments: activity.comments || "",
@@ -106,18 +127,26 @@ export default function StaffActivities() {
   // --- 3. Save Handler ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const volunteerSlots = parseInt(formData.volunteer_slots) || 0;
+    const participantSlots = parseInt(formData.participant_slots) || 0;
+    
     const payload = {
       title: formData.title,
       date: formData.date,
       location: formData.location,
-      spots: parseInt(formData.spots),
+      meeting_location: formData.meeting_location || null,
+      time_start: formData.time_start || null,
+      time_end: formData.time_end || null,
+      volunteer_slots: volunteerSlots,
+      participant_slots: participantSlots,
       activity_type: formData.activity_type,
       disability_access: formData.disability_access,
       comments: formData.comments,
       category: "General",
       image: editingId 
         ? undefined 
-        : `https://source.unsplash.com/800x600/?${formData.activity_type.toLowerCase()}`
+        : "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&q=80&w=800"
     };
 
     let error;
@@ -125,7 +154,7 @@ export default function StaffActivities() {
       const { error: updateError } = await supabase.from('activities').update(payload).eq('id', editingId);
       error = updateError;
     } else {
-      const { error: insertError } = await supabase.from('activities').insert([{ ...payload, image: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&q=80&w=800" }]);
+      const { error: insertError } = await supabase.from('activities').insert([payload]);
       error = insertError;
     }
 
@@ -203,13 +232,27 @@ export default function StaffActivities() {
                 <Calendar className="w-4 h-4 text-blue-500" />
                 <span>{new Date(activity.date).toLocaleDateString()}</span>
               </div>
+              {activity.time_start && activity.time_end && (
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-500" />
+                  <span>{activity.time_start} - {activity.time_end} SGT</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-red-500" />
                 <span className="truncate">{activity.location}</span>
               </div>
+              {activity.meeting_location && (
+                <div className="flex items-center gap-2 ml-6">
+                  <span className="text-xs">📍 Meet at: {activity.meeting_location}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-green-500" />
-                <span>{activity.spots} Spots Available</span>
+                <div className="flex flex-col">
+                  <span>👥 Volunteers: {activity.volunteer_slots || 0}</span>
+                  <span>🎯 Participants: {activity.participant_slots || 0}</span>
+                </div>
               </div>
             </CardContent>
 
@@ -277,23 +320,70 @@ export default function StaffActivities() {
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Time (SGT)</Label>
+              <div className="col-span-3 flex gap-2 items-center">
+                <Input 
+                  type="time" 
+                  placeholder="Start"
+                  className="flex-1"
+                  value={formData.time_start}
+                  onChange={e => setFormData({...formData, time_start: e.target.value})}
+                />
+                <span className="text-muted-foreground">to</span>
+                <Input 
+                  type="time" 
+                  placeholder="End"
+                  className="flex-1"
+                  value={formData.time_end}
+                  onChange={e => setFormData({...formData, time_end: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Location</Label>
               <Input 
                 required 
                 className="col-span-3"
+                placeholder="e.g., Jurong Lake Gardens"
                 value={formData.location}
                 onChange={e => setFormData({...formData, location: e.target.value})}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Spots</Label>
+              <Label className="text-right">Meeting Venue</Label>
+              <Input 
+                className="col-span-3"
+                placeholder="e.g., Main entrance carpark"
+                value={formData.meeting_location}
+                onChange={e => setFormData({...formData, meeting_location: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Volunteers</Label>
               <Input 
                 type="number" 
                 required 
+                min="0"
                 className="col-span-3"
-                value={formData.spots}
-                onChange={e => setFormData({...formData, spots: e.target.value})}
+                placeholder="Number of volunteers needed"
+                value={formData.volunteer_slots}
+                onChange={e => setFormData({...formData, volunteer_slots: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Participants</Label>
+              <Input 
+                type="number" 
+                required 
+                min="0"
+                className="col-span-3"
+                placeholder="Number of participants"
+                value={formData.participant_slots}
+                onChange={e => setFormData({...formData, participant_slots: e.target.value})}
               />
             </div>
 
