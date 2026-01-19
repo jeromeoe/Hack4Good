@@ -1,9 +1,18 @@
-import { NavLink, Outlet, Link } from "react-router-dom";
-import { AREA_OPTIONS } from "../lib/locations";
-import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { LogOut, User } from "lucide-react";
+import { useVolunteerActivities } from "../lib/VolunteerActivitiesContext"; //
 
 export default function VolunteerLayout() {
-  const { filters, setFilters } = useVolunteerActivities();
+  const navigate = useNavigate();
+  // We keep this hook if you need filters later, or remove if unused. 
+  // For now, keeping it prevents breaking the context dependency.
+  useVolunteerActivities(); 
+
+  const handleLogout = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    navigate("/login", { replace: true });
+  };
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     [
@@ -13,50 +22,10 @@ export default function VolunteerLayout() {
         : "text-gray-600 hover:text-gray-900 hover:bg-white/60",
     ].join(" ");
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    clearMockAuth();
-    navigate("/login");
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Top thin bar */}
-      <div className="h-10 bg-white border-b">
-        <div className="mx-auto max-w-6xl px-6 h-full flex items-center justify-between text-sm text-gray-600">
-          {/* Area dropdown */}
-          <div className="flex items-center gap-2">
-            📍 <span className="font-medium text-gray-800">Area</span>
-
-            <select
-              className="ml-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-800"
-              value={filters.area}
-              onChange={(e) => setFilters({ area: e.target.value as any })}
-            >
-              {AREA_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-
-            <span className="ml-2 text-xs text-gray-500">
-              {filters.area === "all" ? "Showing all" : "Showing nearby"}
-            </span>
-          </div>
-
-          {/* My Account link */}
-          <Link
-            to="/volunteer/account"
-            className="flex items-center gap-2 hover:text-gray-900"
-          >
-            👤 <span className="font-medium">My Account</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Main header */}
-      <div className="bg-white border-b">
+    <div className="min-h-screen bg-gray-50">
+      {/* Single Main Header */}
+      <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center gap-6">
           <img src="/src/assets/logo.png" alt="MINDS" className="h-10 w-auto" />
 
