@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase"; // Real Supabase Client
+import { supabase } from "../lib/supabase";
+import { setMockRole } from "../auth/roles"; 
 import type { Disability } from "../types/participant";
 
 const DISABILITIES: Disability[] = [
@@ -16,59 +17,60 @@ const DISABILITIES: Disability[] = [
 export default function ParticipantRegister() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false); // ✅ Controls the "Success View"
   
+  // Role Toggle
+  const [isVolunteer, setIsVolunteer] = useState(false);
+
   const [formData, setFormData] = useState({
-    // Participant info
-    participantName: "",
-    participantEmail: "",
-    participantPhone: "",
-    participantAge: "",
-    disability: "Physical Disability" as Disability,
-    
-    // Account info
+    name: "",
+    email: "",
+    phone: "",
+    age: "",
     password: "",
     confirmPassword: "",
-    
-    // Caregiver info
+    disability: "Physical Disability" as Disability,
     isCaregiver: false,
     caregiverName: "",
     caregiverEmail: "",
     caregiverPhone: "",
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({}); // Clear previous errors
-    
-    // --- 1. Client-Side Validation ---
-    const newErrors: Record<string, string> = {};
+    setErrorMsg("");
+
+    // --- Validation ---
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
+      setErrorMsg("Passwords do not match.");
+      return;
     }
     if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-    if (formData.isCaregiver && !formData.caregiverName) {
-      newErrors.caregiverName = "Caregiver name is required";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+      setErrorMsg("Password must be at least 6 characters.");
       return;
     }
 
-    // --- 2. Real Registration Logic ---
     setLoading(true);
+
     try {
-      // A. Create User in Supabase Auth
+      if (!supabase) {
+        setErrorMsg("Supabase is not configured. Please check environment variables.");
+        setLoading(false);
+        return;
+      }
+
+      const finalRole = isVolunteer ? "volunteer" : "participant";
+
+      // 1. Create Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.participantEmail,
+        email: formData.email,
         password: formData.password,
         options: {
           data: {
-            full_name: formData.participantName, // stored in auth metadata
+            full_name: formData.name,
+            role: finalRole,
           }
         }
       });
@@ -76,42 +78,71 @@ export default function ParticipantRegister() {
       if (authError) throw authError;
 
       if (authData.user) {
-        // B. Create Profile Entry in Database
+        // 2. Create Profile Row
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
-            id: authData.user.id, // Link to Auth ID
-            email: formData.participantEmail,
-            full_name: formData.participantName,
-            role: 'participant', // HARDCODED ROLE
-            phone: formData.participantPhone,
-            age: parseInt(formData.participantAge),
-            disability: formData.disability,
-            caregiver_info: formData.isCaregiver ? {
+            id: authData.user.id,
+            email: formData.email,
+            full_name: formData.name,
+            role: finalRole,
+            phone: formData.phone,
+            age: formData.age ? parseInt(formData.age) : null,
+            disability: isVolunteer ? null : formData.disability,
+            caregiver_info: (!isVolunteer && formData.isCaregiver) ? {
               name: formData.caregiverName,
               email: formData.caregiverEmail,
               phone: formData.caregiverPhone
             } : null
           });
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error("Profile Error:", profileError);
+          setErrorMsg(profileError.message || "Failed to create profile.");
+          setLoading(false);
+          return;
+        }
 
-        // C. Success!
-        alert("Account created successfully!");
-        navigate("/participant");
-      }
+        // 3. ✅ SUCCESS: Show the Success View (No Alerts!)
+        setSuccess(true);
+        setMockRole(finalRole as any);
+
+        setLoading(false);
+
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          navigate(`/${finalRole}`);
+        }, 2000);
+      } 
 
     } catch (error: any) {
       console.error("Registration Error:", error);
-      setErrors({ form: error.message || "Failed to register. Please try again." });
-    } finally {
+      setErrorMsg(error.message || "Failed to register.");
       setLoading(false);
     }
   };
 
+  // ✅ THE SUCCESS VIEW (Replaces the Form)
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full border border-gray-100">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to MINDS!</h2>
+          <p className="text-gray-600 mb-6">Your account has been created successfully.</p>
+          <div className="animate-pulse text-sm text-blue-600 font-medium">
+            Redirecting to your dashboard...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ THE FORM VIEW
   return (
     <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2">
-      {/* LEFT IMAGE PANEL */}
       <div
         className="relative hidden md:flex"
         style={{
@@ -124,211 +155,201 @@ export default function ParticipantRegister() {
         <div className="relative z-10 p-12 text-white flex flex-col justify-between">
           <h2 className="text-3xl font-bold">MINDS</h2>
           <p className="text-base leading-relaxed max-w-sm">
-            Join our community and participate in activities designed to support and empower individuals with special needs.
+            Join our community to support and empower individuals with special needs.
           </p>
         </div>
       </div>
 
-      {/* RIGHT REGISTRATION PANEL */}
-      <div className="flex items-center justify-center px-10 py-8 overflow-y-auto">
+      <div className="flex items-center justify-center px-10 py-8 overflow-y-auto h-screen bg-white">
         <div className="w-full max-w-md">
-          <img
-            src="/src/assets/logo.png"
-            alt="MINDS logo"
-            className="h-20 mx-auto mb-8"
-          />
+          <img src="/src/assets/logo.png" alt="MINDS logo" className="h-20 mx-auto mb-6" />
           
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Create Account</h1>
-          <p className="text-gray-600 mb-6">Register as a participant or caregiver</p>
+          
+          {/* Toggle */}
+          <div className="flex items-center gap-3 mb-6 bg-gray-100 p-1 rounded-lg">
+            <button
+              type="button"
+              onClick={() => setIsVolunteer(false)}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition ${!isVolunteer ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              I am a Participant
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsVolunteer(true)}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition ${isVolunteer ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              I am a Volunteer
+            </button>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Global Error Message */}
-            {errors.form && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && (
               <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200">
-                {errors.form}
+                {errorMsg}
               </div>
             )}
 
-            {/* Participant Information */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900">Participant Information</h2>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Name *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full border rounded-lg px-4 py-2.5 text-base"
-                  placeholder="Participant's full name"
-                  value={formData.participantName}
-                  onChange={(e) => setFormData({ ...formData, participantName: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Age *</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max="120"
-                    className="w-full border rounded-lg px-4 py-2.5 text-base"
-                    placeholder="Age"
-                    value={formData.participantAge}
-                    onChange={(e) => setFormData({ ...formData, participantAge: e.target.value })}
-                  />
-                  {errors.participantAge && (
-                    <p className="text-xs text-red-600 mt-1">{errors.participantAge}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Disability *</label>
-                  <select
-                    required
-                    className="w-full border rounded-lg px-4 py-2.5 text-base"
-                    value={formData.disability}
-                    onChange={(e) => setFormData({ ...formData, disability: e.target.value as Disability })}
-                  >
-                    {DISABILITIES.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Email *</label>
-                <input
-                  type="email"
-                  required
-                  className="w-full border rounded-lg px-4 py-2.5 text-base"
-                  placeholder="participant@example.com"
-                  value={formData.participantEmail}
-                  onChange={(e) => setFormData({ ...formData, participantEmail: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Phone Number *</label>
-                <input
-                  type="tel"
-                  required
-                  className="w-full border rounded-lg px-4 py-2.5 text-base"
-                  placeholder="+65 9123 4567"
-                  value={formData.participantPhone}
-                  onChange={(e) => setFormData({ ...formData, participantPhone: e.target.value })}
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                className="w-full border rounded-lg px-4 py-2.5"
+                placeholder="John Doe"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
             </div>
 
-            {/* Password */}
-            <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                required
+                className="w-full border rounded-lg px-4 py-2.5"
+                placeholder="email@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+
+            {/* DYNAMIC FIELDS based on Toggle */}
+            {!isVolunteer && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Age</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      className="w-full border rounded-lg px-4 py-2.5"
+                      value={formData.age}
+                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Disability</label>
+                    <select
+                      className="w-full border rounded-lg px-4 py-2.5"
+                      value={formData.disability}
+                      onChange={(e) => setFormData({ ...formData, disability: e.target.value as Disability })}
+                    >
+                      {DISABILITIES.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                 <div>
+                   <label className="block text-sm font-medium mb-1">Phone</label>
+                   <input
+                     type="tel"
+                     required
+                     className="w-full border rounded-lg px-4 py-2.5"
+                     placeholder="+65 9123 4567"
+                     value={formData.phone}
+                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                   />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="caregiver"
+                    checked={formData.isCaregiver}
+                    onChange={(e) => setFormData({ ...formData, isCaregiver: e.target.checked })}
+                  />
+                  <label htmlFor="caregiver" className="text-sm text-gray-700">I am a caregiver</label>
+                </div>
+
+                {formData.isCaregiver && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Caregiver Name</label>
+                      <input
+                        type="text"
+                        className="w-full border rounded-lg px-4 py-2.5"
+                        value={formData.caregiverName}
+                        onChange={(e) => setFormData({ ...formData, caregiverName: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Caregiver Email</label>
+                        <input
+                          type="email"
+                          className="w-full border rounded-lg px-4 py-2.5"
+                          value={formData.caregiverEmail}
+                          onChange={(e) => setFormData({ ...formData, caregiverEmail: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Caregiver Phone</label>
+                        <input
+                          type="tel"
+                          className="w-full border rounded-lg px-4 py-2.5"
+                          value={formData.caregiverPhone}
+                          onChange={(e) => setFormData({ ...formData, caregiverPhone: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {isVolunteer && (
+               <div>
+                  <label className="block text-sm font-medium mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    required
+                    className="w-full border rounded-lg px-4 py-2.5"
+                    placeholder="+65 9123 4567"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Password *</label>
+                <label className="block text-sm font-medium mb-1">Password</label>
                 <input
                   type="password"
                   required
-                  className="w-full border rounded-lg px-4 py-2.5 text-base"
-                  placeholder="At least 6 characters"
+                  className="w-full border rounded-lg px-4 py-2.5"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
-                {errors.password && (
-                  <p className="text-xs text-red-600 mt-1">{errors.password}</p>
-                )}
               </div>
-
               <div>
-                <label className="block text-sm font-medium mb-1">Confirm Password *</label>
+                <label className="block text-sm font-medium mb-1">Confirm</label>
                 <input
                   type="password"
                   required
-                  className="w-full border rounded-lg px-4 py-2.5 text-base"
-                  placeholder="Re-enter password"
+                  className="w-full border rounded-lg px-4 py-2.5"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 />
-                {errors.confirmPassword && (
-                  <p className="text-xs text-red-600 mt-1">{errors.confirmPassword}</p>
-                )}
               </div>
-            </div>
-
-            {/* Caregiver Information */}
-            <div className="space-y-4 pt-4 border-t">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isCaregiver}
-                  onChange={(e) => setFormData({ ...formData, isCaregiver: e.target.checked })}
-                  className="rounded"
-                />
-                <span className="text-sm font-medium">I am registering as a caregiver</span>
-              </label>
-
-              {formData.isCaregiver && (
-                <div className="space-y-4 pl-6 border-l-2 border-blue-200">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Caregiver Name *</label>
-                    <input
-                      type="text"
-                      required={formData.isCaregiver}
-                      className="w-full border rounded-lg px-4 py-2.5 text-base"
-                      placeholder="Your full name"
-                      value={formData.caregiverName}
-                      onChange={(e) => setFormData({ ...formData, caregiverName: e.target.value })}
-                    />
-                    {errors.caregiverName && (
-                      <p className="text-xs text-red-600 mt-1">{errors.caregiverName}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Caregiver Email</label>
-                    <input
-                      type="email"
-                      className="w-full border rounded-lg px-4 py-2.5 text-base"
-                      placeholder="caregiver@example.com"
-                      value={formData.caregiverEmail}
-                      onChange={(e) => setFormData({ ...formData, caregiverEmail: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Caregiver Phone</label>
-                    <input
-                      type="tel"
-                      className="w-full border rounded-lg px-4 py-2.5 text-base"
-                      placeholder="+65 8123 4567"
-                      value={formData.caregiverPhone}
-                      onChange={(e) => setFormData({ ...formData, caregiverPhone: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             <button 
               disabled={loading}
-              className="w-full bg-blue-500 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 mt-4"
             >
-              {loading ? "Creating Account..." : "Create Account"}
+              {loading ? "Creating Account..." : `Register as ${isVolunteer ? 'Volunteer' : 'Participant'}`}
             </button>
-          </form>
 
-          <p className="text-sm text-center mt-6 font-bold text-gray-800">
-            Already have an account?{" "}
-            <Link
-              to="/login"
-              className="text-blue-500 underline hover:text-blue-700"
-            >
-              Sign in here
-            </Link>
-          </p>
+            <p className="text-sm text-center mt-4 text-gray-600">
+              Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Log in</Link>
+            </p>
+
+          </form>
         </div>
       </div>
     </div>
