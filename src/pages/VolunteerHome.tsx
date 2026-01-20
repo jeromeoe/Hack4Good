@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { useVolunteerActivities, type Activity } from "../lib/VolunteerActivitiesContext"; //
 import { Calendar, MapPin, CheckCircle } from "lucide-react";
+import { useVolunteerProfile } from "../lib/VolunteerProfileContext";
+
 
 // Helper to safely get the start date string
 function getStartISO(a: Activity) {
@@ -26,6 +28,7 @@ function formatStart(startISO: string) {
 
 export default function VolunteerHome() {
   const { activities, commitments } = useVolunteerActivities(); 
+  const { profile, isLoading: isProfileLoading } = useVolunteerProfile();
   const now = new Date();
   const myActivities = commitments;
 
@@ -54,7 +57,10 @@ export default function VolunteerHome() {
       
       {/* Welcome Card - CLEANED UP */}
       <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h1 className="text-3xl font-bold text-blue-600">Welcome back, Volunteer!</h1>
+        <h1 className="text-3xl font-bold text-blue-600">
+          Welcome back, {profile?.fullName || "Volunteer"}!
+        </h1>
+
         <p className="mt-2 text-gray-600">
           Here’s a quick overview of your volunteering impact.
         </p>
