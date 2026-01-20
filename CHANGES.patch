@@ -1,0 +1,51 @@
+diff --git a/src/lib/participantHooks.ts b/src/lib/participantHooks.ts
+index abc1234..def5678 100644
+--- a/src/lib/participantHooks.ts
++++ b/src/lib/participantHooks.ts
+@@ -245,6 +245,7 @@ export async function updateParticipantProfile(
+     const dbUpdates: Database['public']['Tables']['profiles']['Update'] = {};
+ 
+     if (updates.name !== undefined) dbUpdates.full_name = updates.name;
++    if (updates.email !== undefined) dbUpdates.email = updates.email;
+     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+     if (updates.age !== undefined) dbUpdates.age = updates.age;
+     if (updates.disability !== undefined) dbUpdates.disability = updates.disability;
+@@ -272,15 +273,26 @@ export async function updateParticipantProfile(
+       dbUpdates.caregiver_info = caregiverInfo as any;
+     }
+ 
++    console.log('=== Updating profile ===');
++    console.log('User ID:', user.id);
++    console.log('Updates to apply:', dbUpdates);
++
+     const { error } = await supabase
+       .from('profiles')
+       .update(dbUpdates)
+       .eq('id', user.id);
+ 
+     if (error) {
+-      console.error('Error updating profile:', error);
++      console.error('❌ Error updating profile:', error);
++      console.error('Error details:', {
++        code: error.code,
++        message: error.message,
++        details: error.details,
++        hint: error.hint
++      });
+       return false;
+     }
+ 
++    console.log('✓ Profile updated successfully');
+     return true;
+   } catch (error) {
+     console.error('Error in updateParticipantProfile:', error);
+
+---
+
+Summary of Changes:
+- Added email field mapping (line 248)
+- Added detailed logging before database update (lines 276-278)
+- Enhanced error logging with full error details (lines 286-291)
+- Added success confirmation logging (line 296)
+
+Total: 1 critical fix + 8 lines of improved logging
