@@ -31,6 +31,9 @@ import VolunteersPage from "./pages/admin/volunteers/VolunteersPage";
 import ReportsPage from "./pages/admin/reports/ReportsPage";
 import SettingsPage from "./pages/admin/settings/SettingsPage";
 
+// ✅ IMPORT THE PROVIDER
+import { VolunteerActivitiesProvider } from "./lib/VolunteerActivitiesContext"; 
+
 export default function App() {
   return (
     <Routes>
@@ -50,9 +53,13 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* ✅ Volunteer Portal (with layout/navbar) */}
+      {/* ✅ FIXED: Wrapped Volunteer Portal in the Provider */}
       <Route element={<RoleRoute allow={["volunteer"]} />}>
-        <Route path="/volunteer" element={<VolunteerLayout />}>
+        <Route path="/volunteer" element={
+          <VolunteerActivitiesProvider>
+            <VolunteerLayout />
+          </VolunteerActivitiesProvider>
+        }>
           <Route index element={<VolunteerHome />} />
           <Route path="calendar" element={<VolunteerCalendar />} />
           <Route path="activities" element={<VolunteerActivities />} />
@@ -61,7 +68,7 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* ✅ Participant Portal (with layout/navbar) */}
+      {/* Participant Portal */}
       <Route element={<RoleRoute allow={["participant"]} />}>
         <Route path="/participant" element={<ParticipantLayout />}>
           <Route index element={<ParticipantHome />} />
@@ -82,8 +89,6 @@ export default function App() {
       {/* Fallback Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-
-      <Route path="registrations" element={<RegistrationsPage />} />
     </Routes>
   );
 }
