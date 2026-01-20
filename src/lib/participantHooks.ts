@@ -104,6 +104,7 @@ function convertDBActivityToApp(
     isRegistered,
     waitlisted,
     suitableFor,
+    image: dbActivity.image || null,
   };
 }
 

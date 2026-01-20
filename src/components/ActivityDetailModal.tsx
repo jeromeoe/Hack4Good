@@ -44,6 +44,21 @@ export default function ActivityDetailModal({ activity, onClose, onToggleRegistr
         className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Activity Image */}
+        {activity.image && (
+          <div className="w-full">
+            <img
+              src={activity.image}
+              alt={activity.title}
+              className="w-full h-64 object-cover rounded-t-xl"
+              onError={(e) => {
+                // Hide image if it fails to load
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+
         {/* Header */}
         <div className="border-b p-6">
           <div className="flex items-start justify-between">

@@ -44,4 +44,5 @@ export type ParticipantActivity = {
   isRegistered: boolean;
   waitlisted: boolean;
   suitableFor: Disability[];
+  image?: string | null;
 };
