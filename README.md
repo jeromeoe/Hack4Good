@@ -1,73 +1,65 @@
-# React + TypeScript + Vite
+# Hack4Good Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A volunteer and participant management system built for the Hack4Good hackathon. This application connects volunteers with activities and provides staff with tools to manage events and registrations to ensure a frictionless experience. 
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Frontend:** React, TypeScript, Vite
+* **Styling:** Tailwind CSS, Shadcn UI, Lucide React
+* **Backend:** Supabase (PostgreSQL, Authentication)
+* **State Management:** React Context API
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Volunteer Portal
+* **Activity Browsing:** View available volunteer opportunities with filtering by date, location, and needs.
+* **Registration Management:** Sign up for activities or withdraw from commitments.
+* **Dashboard:** Track upcoming activities and role assignments (e.g., General Support, Wheelchair Assistance).
 
-## Expanding the ESLint configuration
+### Staff Portal
+* **Dashboard:** View real-time statistics on total volunteers, active activities, and recent signups.
+* **Activity Management:** Create, edit, and delete volunteer activities.
+* **Capacity Planning:** Set specific slot limits for volunteers and participants.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Participant Portal
+* **Access:** tailored view for event participants to view and register for activities.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Local Development
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+1.  **Clone the repository**
+    ```bash
+    git clone [https://github.com/jeromeoe/Hack4Good.git](https://github.com/jeromeoe/Hack4Good.git)
+    cd Hack4Good
+    ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+3.  **Environment Setup**
+    Create a `.env` file in the root directory and add your Supabase credentials:
+    ```env
+    VITE_SUPABASE_URL=your_supabase_project_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+4.  **Run the application**
+    ```bash
+    npm run dev
+    ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Database Schema
+
+The application relies on the following key Supabase tables:
+
+* **profiles:** Stores user details linked to Supabase Auth.
+* **activities:** Contains event details, locations, times, and capacity slots.
+* **registrations:** Links users to activities with status and role tracking.
+
+## Project Structure
+
+* `src/components`: Reusable UI components (Shadcn) and feature-specific widgets.
+* `src/pages`: Main view components for Staff, Volunteer, and Participant routes.
+* `src/lib`: Supabase client configuration and Context providers.
+* `src/types`: TypeScript definitions for database tables and application state.

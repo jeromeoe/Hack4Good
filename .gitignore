@@ -23,3 +23,21 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Documentation files (keep only README.md)
+# Ignore all .md files except README.md
+*.md
+!README.md
+
+# SQL scripts (keep only schema and migrations)
+*.sql
+!schema.sql
+!migrations/*.sql
+
+# Patch files
+*.patch
+
+# Cleanup scripts
+cleanup-*.sh
+*.sh
+!scripts/*.sh
