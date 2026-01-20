@@ -22,7 +22,6 @@ import StaffActivities from "./pages/StaffActivities";
 
 // your admin imports
 import AdminLayout from "./layouts/AdminLayout";
-import AdminDashboardPage from "./pages/admin/DashboardPage";
 import ActivitiesPage from "./pages/admin/activities/ActivitiesPage";
 import RegistrationsPage from "./pages/admin/registrations/RegistrationsPage";
 import UsersOverviewPage from "./pages/admin/users/UsersOverviewPage";
@@ -30,6 +29,9 @@ import StaffCrudPage from "./pages/admin/users/StaffCrudPage";
 import VolunteersPage from "./pages/admin/volunteers/VolunteersPage";
 import ReportsPage from "./pages/admin/reports/ReportsPage";
 import SettingsPage from "./pages/admin/settings/SettingsPage";
+import StaffUsersPage from "./pages/admin/users/StaffUsersPage";
+import ActivityDetailPage from "./pages/admin/activities/ActivitiesDetailPage";
+import AdminDashboardPage from "./pages/admin/dashboard/AdminDashboardPage";
 
 export default function App() {
   return (
@@ -47,6 +49,7 @@ export default function App() {
           <Route path="volunteers" element={<VolunteersPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
         </Route>
       </Route>
 
@@ -84,6 +87,9 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
 
       <Route path="registrations" element={<RegistrationsPage />} />
+      <Route path="users" element={<UsersOverviewPage />} />
+      <Route path="users/staff" element={<StaffUsersPage />} />
+      <Route path="admin/activities/:id" element={<ActivityDetailPage />} />
     </Routes>
   );
 }
