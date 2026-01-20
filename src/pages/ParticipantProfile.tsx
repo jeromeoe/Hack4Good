@@ -52,10 +52,10 @@ export default function ParticipantProfile() {
   // Track the last saved values to prevent infinite loop
   const lastSavedRef = useRef<typeof formData | null>(null);
 
-  // Sync formData with profile when profile loads
+  // Sync formData with profile when profile loads (only once)
   useEffect(() => {
-    if (profile) {
-      console.log('[SYNC] Syncing profile data to form');
+    if (profile && !lastSavedRef.current) {
+      console.log('[SYNC] Syncing profile data to form (first time)');
       const syncedData = {
         id: profile.id,
         name: profile.name,
@@ -99,6 +99,19 @@ export default function ParticipantProfile() {
 
     // Compare against lastSaved instead of profile
     const lastSaved = lastSavedRef.current;
+    console.log('[AUTOSAVE] lastSaved:', lastSaved);
+    console.log('[AUTOSAVE] formData:', {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      age: formData.age,
+      disability: formData.disability,
+      isCaregiver: formData.isCaregiver,
+      caregiverName: formData.caregiverName,
+      caregiverEmail: formData.caregiverEmail,
+      caregiverPhone: formData.caregiverPhone,
+    });
+    
     if (!lastSaved) {
       console.log('[AUTOSAVE] Skipping - no last saved reference');
       return;
@@ -115,6 +128,13 @@ export default function ParticipantProfile() {
       formData.caregiverName !== lastSaved.caregiverName ||
       formData.caregiverEmail !== lastSaved.caregiverEmail ||
       formData.caregiverPhone !== lastSaved.caregiverPhone;
+
+    console.log('[AUTOSAVE] Comparison results:');
+    console.log('  name:', formData.name, '!==', lastSaved.name, '=', formData.name !== lastSaved.name);
+    console.log('  email:', formData.email, '!==', lastSaved.email, '=', formData.email !== lastSaved.email);
+    console.log('  phone:', formData.phone, '!==', lastSaved.phone, '=', formData.phone !== lastSaved.phone);
+    console.log('  age:', formData.age, '!==', lastSaved.age, '=', formData.age !== lastSaved.age);
+    console.log('  hasChanges:', hasChanges);
 
     if (!hasChanges) {
       console.log('[AUTOSAVE] Skipping - no changes detected from last save');

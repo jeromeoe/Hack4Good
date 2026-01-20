@@ -219,10 +219,16 @@ export async function updateParticipantProfile(
       return true; // Return success since there's nothing to update
     }
 
-    const { error } = await supabase
+    console.log('🔹 Executing Supabase UPDATE query...');
+    const { data, error } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .select(); // Add .select() to return updated data
+
+    console.log('🔹 Supabase response received');
+    console.log('Updated data:', data);
+    console.log('Error:', error);
 
     if (error) {
       console.error('❌ Error updating profile:', error);
