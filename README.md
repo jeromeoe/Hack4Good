@@ -1,4 +1,4 @@
-# Hack4Good Platform
+# MindsConnect
 
 A volunteer and participant management system built for the Hack4Good hackathon. This application connects volunteers with activities and provides staff with tools to manage events and registrations to ensure a frictionless experience. 
 
