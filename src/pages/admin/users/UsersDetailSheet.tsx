@@ -88,7 +88,7 @@ export default function UserDetailSheet({
               title: a.title,
               date: a.date,
               location: a.location,
-            }))
+            })),
           );
         } else {
           setCreated([]);
