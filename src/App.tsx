@@ -20,11 +20,35 @@ import ParticipantRegister from "./pages/ParticipantRegister";
 import StaffHome from "./pages/StaffHome";
 import StaffActivities from "./pages/StaffActivities";
 
+// your admin imports
+import AdminLayout from "./layouts/AdminLayout";
+import AdminDashboardPage from "./pages/admin/DashboardPage";
+import ActivitiesPage from "./pages/admin/activities/ActivitiesPage";
+import RegistrationsPage from "./pages/admin/registrations/RegistrationsPage";
+import UsersOverviewPage from "./pages/admin/users/UsersOverviewPage";
+import StaffCrudPage from "./pages/admin/users/StaffCrudPage";
+import VolunteersPage from "./pages/admin/volunteers/VolunteersPage";
+import ReportsPage from "./pages/admin/reports/ReportsPage";
+import SettingsPage from "./pages/admin/settings/SettingsPage";
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<ParticipantRegister />} />
+
+      <Route element={<RoleRoute allow={["admin"]} />}>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="activities" element={<ActivitiesPage />} />
+          <Route path="registrations" element={<RegistrationsPage />} />
+          <Route path="users" element={<UsersOverviewPage />} />
+          <Route path="users/staff" element={<StaffCrudPage />} />
+          <Route path="volunteers" element={<VolunteersPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+      </Route>
 
       {/* ✅ Volunteer Portal (with layout/navbar) */}
       <Route element={<RoleRoute allow={["volunteer"]} />}>
@@ -58,6 +82,8 @@ export default function App() {
       {/* Fallback Routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes> 
+
+      <Route path="registrations" element={<RegistrationsPage />} />
+    </Routes>
   );
 }
