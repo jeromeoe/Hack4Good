@@ -1,4 +1,4 @@
-export type Role = "participant" | "volunteer" | "staff";
+export type Role = "participant" | "volunteer" | "staff" | "admin";
 
 export function setMockRole(role: Role) {
   localStorage.setItem("mock_role", role);
@@ -7,7 +7,7 @@ export function setMockRole(role: Role) {
 
 export function getMockRole(): Role | null {
   const r = localStorage.getItem("mock_role");
-  if (r === "participant" || r === "volunteer" || r === "staff") return r;
+  if (r === "participant" || r === "volunteer" || r === "staff" || r === "admin") return r;
   return null;
 }
 
