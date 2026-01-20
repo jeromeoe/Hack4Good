@@ -9,7 +9,7 @@ import VolunteerHome from "./pages/VolunteerHome";
 import VolunteerCommitments from "./pages/VolunteerCommitments";
 import VolunteerCalendar from "./pages/VolunteerCalendar";
 import VolunteerActivities from "./pages/VolunteerActivities";
-import MyAccount from "./pages/MyAccount";
+import VolunteerProfile from "./pages/VolunteerProfile";
 
 import ParticipantHome from "./pages/ParticipantHome";
 import ParticipantProfile from "./pages/ParticipantProfile";
@@ -33,8 +33,9 @@ import StaffUsersPage from "./pages/admin/users/StaffUsersPage";
 import ActivityDetailPage from "./pages/admin/activities/ActivitiesDetailPage";
 import AdminDashboardPage from "./pages/admin/dashboard/AdminDashboardPage";
 
-// ✅ IMPORT THE PROVIDER
-import { VolunteerActivitiesProvider } from "./lib/VolunteerActivitiesContext"; 
+// ✅ PROVIDERS
+import { VolunteerActivitiesProvider } from "./lib/VolunteerActivitiesContext";
+import { VolunteerProfileProvider } from "./lib/VolunteerProfileContext";
 
 export default function App() {
   return (
@@ -56,18 +57,23 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* ✅ FIXED: Wrapped Volunteer Portal in the Provider */}
+      {/* ✅ Volunteer Portal wrapped in BOTH providers */}
       <Route element={<RoleRoute allow={["volunteer"]} />}>
-        <Route path="/volunteer" element={
-          <VolunteerActivitiesProvider>
-            <VolunteerLayout />
-          </VolunteerActivitiesProvider>
-        }>
+        <Route
+          path="/volunteer"
+          element={
+            <VolunteerActivitiesProvider>
+              <VolunteerProfileProvider>
+                <VolunteerLayout />
+              </VolunteerProfileProvider>
+            </VolunteerActivitiesProvider>
+          }
+        >
           <Route index element={<VolunteerHome />} />
           <Route path="calendar" element={<VolunteerCalendar />} />
           <Route path="activities" element={<VolunteerActivities />} />
           <Route path="commitments" element={<VolunteerCommitments />} />
-          <Route path="account" element={<MyAccount />} />
+          <Route path="account" element={<VolunteerProfile />} />
         </Route>
       </Route>
 

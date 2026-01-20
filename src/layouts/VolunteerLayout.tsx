@@ -40,7 +40,7 @@ export default function VolunteerLayout() {
               </NavLink>
               <NavLink to="/volunteer/account" className={linkClass}>
                 <User className="w-4 h-4" />
-                My Account
+                My Profile
               </NavLink>
               
               <div className="w-px h-6 bg-gray-300 mx-1"></div>
