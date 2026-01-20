@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, MapPin, Calendar, Users, Edit2, Search, Accessibility, Clock } from "lucide-react";
+import { Plus, Trash2, MapPin, Calendar, Users, Edit2, Search, Accessibility, Clock, Image as ImageIcon } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 // Shadcn Components
@@ -69,6 +69,7 @@ export default function StaffActivities() {
     activity_type: "Social",
     disability_access: "Universal",
     comments: "",
+    image: "", // ✅ ADDED: Image URL field
   });
 
   // --- 1. Load Data ---
@@ -101,7 +102,8 @@ export default function StaffActivities() {
       participant_slots: "",
       activity_type: "Social", 
       disability_access: "Universal", 
-      comments: ""
+      comments: "",
+      image: "", // Reset image
     });
     setIsModalOpen(true);
   };
@@ -120,6 +122,7 @@ export default function StaffActivities() {
       activity_type: activity.activity_type || "Social",
       disability_access: activity.disability_access || "Universal",
       comments: activity.comments || "",
+      image: activity.image || "", // ✅ Load existing image
     });
     setIsModalOpen(true);
   };
@@ -131,6 +134,11 @@ export default function StaffActivities() {
     const volunteerSlots = parseInt(formData.volunteer_slots) || 0;
     const participantSlots = parseInt(formData.participant_slots) || 0;
     
+    // Use user-provided image or fallback to placeholder if empty
+    const imageToUse = formData.image.trim() !== "" 
+      ? formData.image 
+      : "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&q=80&w=800";
+
     const payload = {
       title: formData.title,
       date: formData.date,
@@ -144,9 +152,7 @@ export default function StaffActivities() {
       disability_access: formData.disability_access,
       comments: formData.comments,
       category: "General",
-      image: editingId 
-        ? undefined 
-        : "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&q=80&w=800"
+      image: imageToUse, // ✅ Send image to DB
     };
 
     let error;
@@ -284,6 +290,27 @@ export default function StaffActivities() {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="grid gap-4 py-4">
+            {/* ✅ NEW: Image URL Input */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right flex items-center justify-end gap-2">
+                 <ImageIcon size={14} /> Image URL
+              </Label>
+              <Input 
+                className="col-span-3"
+                placeholder="https://example.com/image.jpg"
+                value={formData.image}
+                onChange={e => setFormData({...formData, image: e.target.value})}
+              />
+            </div>
+            {/* Show a preview if user entered a URL */}
+            {formData.image && (
+               <div className="grid grid-cols-4 items-center gap-4">
+                 <div className="col-start-2 col-span-3">
+                   <img src={formData.image} alt="Preview" className="h-24 w-full object-cover rounded-md border" />
+                 </div>
+               </div>
+            )}
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Title</Label>
               <Input 

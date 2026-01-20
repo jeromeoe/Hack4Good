@@ -1,11 +1,7 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, Link } from "react-router-dom";
 import { LogOut } from "lucide-react"; // Import icon for better UX
-import { supabase } from "../lib/supabase";
-import { clearMockAuth } from "../auth/roles";
 
 export default function StaffLayout() {
-  const navigate = useNavigate();
-
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     [
       "px-4 py-2 rounded-md text-sm font-medium transition",
@@ -13,12 +9,6 @@ export default function StaffLayout() {
         ? "bg-white shadow border text-gray-900"
         : "text-gray-600 hover:text-gray-900 hover:bg-white/60",
     ].join(" ");
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    clearMockAuth();
-    navigate("/login");
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -53,16 +43,17 @@ export default function StaffLayout() {
 
             {/* Right Side Actions */}
             <div className="flex items-center gap-3 border-l pl-6 border-gray-200">
+               {/* ✅ CHANGED: "Admin" -> "Staff" */}
                <span className="text-sm font-medium text-gray-700 hidden md:block">
-                 Admin
+                 Staff
                </span>
-               <button 
-                 onClick={handleLogout}
+               <Link 
+                 to="/login" 
                  className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-red-600 transition px-3 py-2 rounded-md hover:bg-red-50"
                >
                  <LogOut size={16} />
                  Log Out
-               </button>
+               </Link>
             </div>
           </div>
           
