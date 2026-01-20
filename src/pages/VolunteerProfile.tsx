@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-
-type Gender = "Prefer not to say" | "Female" | "Male" | "Non-binary" | "Other";
+import { useVolunteerProfile } from "../lib/VolunteerProfileContext";
+import type { Gender } from "../lib/VolunteerHooks";
 
 type Profile = {
   fullName: string;
@@ -8,10 +8,7 @@ type Profile = {
   bio: string;
   experience: string;
   languages: string;
-  photoDataUrl: string; // base64
 };
-
-const STORAGE_KEY = "minds_profile_v1";
 
 const DEFAULT_PROFILE: Profile = {
   fullName: "",
@@ -19,30 +16,7 @@ const DEFAULT_PROFILE: Profile = {
   bio: "",
   experience: "",
   languages: "",
-  photoDataUrl: "",
 };
-
-function loadProfile(): Profile {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PROFILE;
-    const p = JSON.parse(raw) as Partial<Profile>;
-    return {
-      fullName: p.fullName ?? "",
-      gender: (p.gender as Gender) ?? "Prefer not to say",
-      bio: p.bio ?? "",
-      experience: p.experience ?? "",
-      languages: p.languages ?? "",
-      photoDataUrl: p.photoDataUrl ?? "",
-    };
-  } catch {
-    return DEFAULT_PROFILE;
-  }
-}
-
-function saveProfile(p: Profile) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
-}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -60,64 +34,139 @@ function Helper({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-slate-500">{children}</div>;
 }
 
-export default function MyAccount() {
-  const fileRef = useRef<HTMLInputElement | null>(null);
+function sameProfile(a: Profile, b: Profile) {
+  return (
+    a.fullName === b.fullName &&
+    a.gender === b.gender &&
+    a.bio === b.bio &&
+    a.experience === b.experience &&
+    a.languages === b.languages
+  );
+}
 
-  const [profile, setProfile] = useState<Profile>(() => loadProfile());
+export default function VolunteerProfile() {
+  const { profile: dbProfile, updateProfile, isLoading, refreshProfile } =
+    useVolunteerProfile();
+
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
   const [status, setStatus] = useState<string>("");
 
-  // Auto-save for a “Google settings” feel
+  // Prevent saving during initial sync
+  const isInitialLoadRef = useRef(true);
+  // Track last saved values
+  const lastSavedRef = useRef<Profile | null>(null);
+
+  // Optional: ensure profile is fetched on first mount (doesn't change features)
   useEffect(() => {
-    saveProfile(profile);
-  }, [profile]);
+    refreshProfile?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const avatarText = useMemo(() => initials(profile.fullName), [profile.fullName]);
+  // Sync DB profile -> local form state (like participant)
+  useEffect(() => {
+    if (!dbProfile) return;
 
-  function pickPhoto() {
-    fileRef.current?.click();
-  }
-
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProfile((p) => ({ ...p, photoDataUrl: String(reader.result || "") }));
-      setStatus("Photo updated ✅");
-      window.setTimeout(() => setStatus(""), 1400);
+    const next: Profile = {
+      fullName: dbProfile.fullName,
+      gender: dbProfile.gender,
+      bio: dbProfile.bio,
+      experience: dbProfile.experience,
+      languages: dbProfile.languages,
     };
-    reader.readAsDataURL(file);
 
-    e.target.value = "";
-  }
+    setProfile(next);
+    lastSavedRef.current = next;
 
-  function removePhoto() {
-    setProfile((p) => ({ ...p, photoDataUrl: "" }));
-    setStatus("Photo removed ✅");
-    window.setTimeout(() => setStatus(""), 1400);
-  }
+    // enable autosave after state settles
+    const t = window.setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 50);
 
-  function resetAll() {
-    localStorage.removeItem(STORAGE_KEY);
+    return () => window.clearTimeout(t);
+  }, [dbProfile?.id]);
+
+  // Debounced autosave -> context -> Supabase
+  useEffect(() => {
+    if (!dbProfile) return;
+    if (isInitialLoadRef.current) return;
+
+    const last = lastSavedRef.current;
+    if (last && sameProfile(profile, last)) return;
+
+    const t = window.setTimeout(async () => {
+      const ok = await updateProfile({
+        fullName: profile.fullName,
+        gender: profile.gender,
+        bio: profile.bio,
+        experience: profile.experience,
+        languages: profile.languages,
+      });
+
+      if (ok) {
+        lastSavedRef.current = { ...profile };
+        setStatus("Changes saved ✅");
+      } else {
+        setStatus("Failed to save ❌");
+      }
+
+      window.setTimeout(() => setStatus(""), 2000);
+    }, 800);
+
+    return () => window.clearTimeout(t);
+  }, [profile, dbProfile?.id, updateProfile]);
+
+  const avatarText = useMemo(
+    () => initials(profile.fullName),
+    [profile.fullName]
+  );
+
+  async function resetAll() {
     setProfile(DEFAULT_PROFILE);
-    setStatus("Profile reset ✅");
-    window.setTimeout(() => setStatus(""), 1400);
+    setStatus("Resetting...");
+
+    const ok = await updateProfile({ ...DEFAULT_PROFILE });
+
+    if (ok) {
+      lastSavedRef.current = { ...DEFAULT_PROFILE };
+      setStatus("Profile reset ✅");
+    } else {
+      setStatus("Failed to reset ❌");
+    }
+
+    window.setTimeout(() => setStatus(""), 2000);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-slate-600">Loading profile...</p>
+      </div>
+    );
+  }
+
+  // If user not logged in (dbProfile null)
+  if (!dbProfile) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-slate-600">Not logged in / profile not found.</p>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-[calc(100vh-7rem)]">
-      {/* Top header area (Google-ish) */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-slate-900">My Account</h1>
+            <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
             <p className="text-slate-600">
               Manage your volunteer profile and preferences.
             </p>
-            {status ? <div className="text-sm font-medium text-emerald-600">{status}</div> : null}
+            {status ? (
+              <div className="text-sm font-medium text-emerald-600">
+                {status}
+              </div>
+            ) : null}
           </div>
 
           <button
@@ -131,20 +180,11 @@ export default function MyAccount() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Left: Profile card */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-4">
-            {profile.photoDataUrl ? (
-              <img
-                src={profile.photoDataUrl}
-                alt="Profile"
-                className="h-16 w-16 rounded-2xl object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 text-lg font-bold text-white ring-1 ring-slate-200">
-                {avatarText}
-              </div>
-            )}
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 text-lg font-bold text-white ring-1 ring-slate-200">
+              {avatarText}
+            </div>
 
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-slate-900">
@@ -152,31 +192,6 @@ export default function MyAccount() {
               </div>
               <div className="text-sm text-slate-500">Volunteer profile</div>
             </div>
-          </div>
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={onFileChange}
-          />
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={pickPhoto}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 active:scale-[0.98]"
-            >
-              Upload photo
-            </button>
-            <button
-              type="button"
-              onClick={removePhoto}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-            >
-              Remove
-            </button>
           </div>
 
           <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
@@ -187,14 +202,16 @@ export default function MyAccount() {
           </div>
         </div>
 
-        {/* Right: Settings sections */}
         <div className="space-y-6">
-          {/* Personal info */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-lg font-semibold text-slate-900">Personal info</div>
-                <div className="text-sm text-slate-600">Basic details shown to staff.</div>
+                <div className="text-lg font-semibold text-slate-900">
+                  Personal info
+                </div>
+                <div className="text-sm text-slate-600">
+                  Basic details shown to staff.
+                </div>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                 Auto-saved
@@ -206,7 +223,9 @@ export default function MyAccount() {
                 <FieldLabel>Full name</FieldLabel>
                 <input
                   value={profile.fullName}
-                  onChange={(e) => setProfile((p) => ({ ...p, fullName: e.target.value }))}
+                  onChange={(e) =>
+                    setProfile((p) => ({ ...p, fullName: e.target.value }))
+                  }
                   placeholder="e.g. Alex Tan"
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-400"
                 />
@@ -217,7 +236,12 @@ export default function MyAccount() {
                 <FieldLabel>Gender</FieldLabel>
                 <select
                   value={profile.gender}
-                  onChange={(e) => setProfile((p) => ({ ...p, gender: e.target.value as Gender }))}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      gender: e.target.value as Gender,
+                    }))
+                  }
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-400"
                 >
                   <option>Prefer not to say</option>
@@ -231,12 +255,14 @@ export default function MyAccount() {
             </div>
           </div>
 
-          {/* About */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div>
-              <div className="text-lg font-semibold text-slate-900">About you</div>
+              <div className="text-lg font-semibold text-slate-900">
+                About you
+              </div>
               <div className="text-sm text-slate-600">
-                Short notes that help staff and other volunteers understand your strengths.
+                Short notes that help staff and other volunteers understand your
+                strengths.
               </div>
             </div>
 
@@ -245,12 +271,17 @@ export default function MyAccount() {
                 <FieldLabel>Bio</FieldLabel>
                 <textarea
                   value={profile.bio}
-                  onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
+                  onChange={(e) =>
+                    setProfile((p) => ({ ...p, bio: e.target.value }))
+                  }
                   rows={4}
                   placeholder="Introduce yourself (comfort level, interests, what you're happy to help with)"
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-400"
                 />
-                <Helper>Example: “I’m patient, calm, and enjoy helping with group activities.”</Helper>
+                <Helper>
+                  Example: “I’m patient, calm, and enjoy helping with group
+                  activities.”
+                </Helper>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -258,7 +289,12 @@ export default function MyAccount() {
                   <FieldLabel>Experience</FieldLabel>
                   <textarea
                     value={profile.experience}
-                    onChange={(e) => setProfile((p) => ({ ...p, experience: e.target.value }))}
+                    onChange={(e) =>
+                      setProfile((p) => ({
+                        ...p,
+                        experience: e.target.value,
+                      }))
+                    }
                     rows={3}
                     placeholder="e.g. Worked with seniors / special needs / student volunteer etc."
                     className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-400"
@@ -269,38 +305,38 @@ export default function MyAccount() {
                   <FieldLabel>Languages</FieldLabel>
                   <input
                     value={profile.languages}
-                    onChange={(e) => setProfile((p) => ({ ...p, languages: e.target.value }))}
+                    onChange={(e) =>
+                      setProfile((p) => ({
+                        ...p,
+                        languages: e.target.value,
+                      }))
+                    }
                     placeholder="e.g. English, Mandarin"
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-400"
                   />
-                  <Helper>Optional but helpful for caregiver/participant communication.</Helper>
+                  <Helper>
+                    Optional but helpful for caregiver/participant communication.
+                  </Helper>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Preview */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="text-lg font-semibold text-slate-900">Preview</div>
             <div className="mt-4 flex items-start gap-4">
-              {profile.photoDataUrl ? (
-                <img
-                  src={profile.photoDataUrl}
-                  alt="Preview"
-                  className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200"
-                />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-xs font-bold text-white">
-                  {avatarText}
-                </div>
-              )}
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-xs font-bold text-white">
+                {avatarText}
+              </div>
 
               <div className="min-w-0">
                 <div className="truncate text-base font-semibold text-slate-900">
                   {profile.fullName.trim() ? profile.fullName : "Volunteer"}
                 </div>
                 <div className="mt-1 text-sm text-slate-600">
-                  {profile.bio.trim() ? profile.bio : "Add a bio to introduce yourself."}
+                  {profile.bio.trim()
+                    ? profile.bio
+                    : "Add a bio to introduce yourself."}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -323,7 +359,7 @@ export default function MyAccount() {
           </div>
 
           <div className="text-xs text-slate-500">
-            *This is frontend-only demo storage (saved in your browser).
+            *This profile is saved to your account.
           </div>
         </div>
       </div>
