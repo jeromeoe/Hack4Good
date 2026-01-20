@@ -2,6 +2,10 @@
 
 A volunteer and participant management system built for the Hack4Good hackathon. This application connects volunteers with activities and provides staff with tools to manage events and registrations to ensure a frictionless experience. 
 
+## MINDS Problem Statement
+
+How might we reduce friction in activity sign-ups for both individuals and caregivers, while reducing manual effort for staff in managing and consolidating registration data?
+
 ## Tech Stack
 
 * **Frontend:** React, TypeScript, Vite
