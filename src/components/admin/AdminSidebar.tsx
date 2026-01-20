@@ -38,25 +38,7 @@ export default function AdminSidebar() {
         <Item to="/admin" label="Dashboard" />
         <Item to="/admin/activities" label="Activities" />
         <Item to="/admin/registrations" label="Registrations" />
-
-        {/* users submenu */}
-        <button
-          onClick={() => setUsersOpen(!usersOpen)}
-          className={`${base} w-full justify-between ${
-            isUsersRoute ? active : ""
-          }`}
-        >
-          <span>Users</span>
-          <span className="text-xs">{usersOpen ? "−" : "+"}</span>
-        </button>
-
-        {usersOpen && (
-          <div className={sub}>
-            <Item to="/admin/users" label="Users Overview" />
-            <Item to="/admin/users/staff" label="Staff Management" />
-            <Item to="/admin/users/volunteers" label="Volunteers" />
-          </div>
-        )}
+        <Item to="/admin/users" label="Users Overview" />
 
         <Item to="/admin/reports" label="Reports" />
         <Item to="/admin/settings" label="Settings" />

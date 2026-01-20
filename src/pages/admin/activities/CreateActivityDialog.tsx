@@ -39,7 +39,7 @@ export default function CreateActivityDialog({ onCreated }: Props) {
 
   function set<K extends keyof ActivityCreateInput>(
     key: K,
-    value: ActivityCreateInput[K]
+    value: ActivityCreateInput[K],
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
